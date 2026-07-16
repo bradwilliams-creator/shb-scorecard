@@ -121,6 +121,8 @@
 
   <nav class="tabs" id="tabs">
     <div class="tab on" data-v="overview">Overview</div>
+    <div class="tab" data-v="ytd">YTD</div>
+    <div class="tab" data-v="quarterly">Quarterly</div>
     <div class="tab" data-v="revenue">Revenue</div>
     <div class="tab" data-v="marketing">Marketing</div>
     <div class="tab" data-v="agents">Agents</div>
@@ -133,8 +135,8 @@
       <div class="panel"><h2>Monthly Revenue vs Goal</h2>
         <div class="desc">Closed &amp; open (projected) revenue per month against the $1.0M monthly goal.</div>
         <div id="ovRevChart"></div></div>
-      <div class="panel"><h2>Lead-to-Contract Funnel (YTD)</h2>
-        <div class="desc">Marketing funnel across all channels, year to date.</div>
+      <div class="panel"><h2 id="ovFunnelTitle">Lead-to-Contract Funnel (MTD)</h2>
+        <div class="desc" id="ovFunnelDesc">Marketing funnel across all channels, month to date.</div>
         <div id="ovFunnel"></div></div>
     </div>
     <div class="grid g2">
@@ -142,6 +144,36 @@
         <div class="tablewrap"><table id="ovAgents"></table></div></div>
       <div class="panel"><h2>Disposition Team</h2><div class="desc">2026 closed revenue by rep.</div>
         <div class="tablewrap"><table id="ovDispo"></table></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-ytd">
+    <div class="grid g4" id="ytdKpis"></div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="panel"><h2>Lead-to-Contract Funnel (YTD)</h2>
+        <div class="desc">Marketing funnel across all channels, year to date.</div>
+        <div id="ytdFunnel"></div></div>
+      <div class="panel"><h2>YTD Metrics vs Goal</h2>
+        <div class="desc">All key year-to-date numbers in one place.</div>
+        <div class="tablewrap"><table id="ytdTable"></table></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-quarterly">
+    <div class="grid g4" id="qKpis"></div>
+    <div class="panel"><h2>Revenue by Quarter</h2>
+      <div class="desc">Closed (bright) and open/projected (dark) revenue per quarter. Dashed line = $3.0M quarterly goal.</div>
+      <div id="qChart"></div></div>
+    <div class="panel"><h2>Quarter-over-Quarter Metrics</h2>
+      <div class="desc">Every core metric by quarter. Marketing data is logged through the most recent completed month.</div>
+      <div class="tablewrap"><table id="qTable"></table></div></div>
+    <div class="grid g2">
+      <div class="panel"><h2>Agent Closed Revenue by Quarter</h2>
+        <div class="desc">Active roster only. Source: REVENUE FORECAST.</div>
+        <div class="tablewrap"><table id="qAgents"></table></div></div>
+      <div class="panel"><h2>Dispo Closed Revenue by Quarter</h2>
+        <div class="desc">From real closing dates in the SOLD ledger.</div>
+        <div class="tablewrap"><table id="qDispo"></table></div></div>
     </div>
   </section>
 
@@ -182,7 +214,8 @@
         <h2 style="margin:0">Acquisition Agent Leaderboard</h2>
         <span class="pill">Sorted by closed revenue · click a column to sort</span>
       </div>
-      <div class="desc" style="margin-top:6px">Signed = contract value brought in. Closed = revenue realized. Close rate = closed ÷ signed contracts.</div>
+      <div class="desc" style="margin-top:6px">Signed = contract value brought in. Closed = revenue realized. Close rate = closed ÷ signed contracts.
+        <span id="agHidden"></span></div>
       <div class="tablewrap"><table id="agTable"></table></div></div>
   </section>
 
@@ -228,6 +261,12 @@ const LIVE = {
     sold:      "280965259",   // SOLD PROPERTIES (closed deals ledger)
   },
 
+  // Optional admin tab, fetched by NAME (create it in the sheet to use it).
+  // Anyone with EDIT access to the Google Sheet is effectively a dashboard
+  // admin: names listed under "HIDDEN AGENTS" / "HIDDEN DISPO REPS" in this
+  // tab are removed from the dashboard roster (company totals unaffected).
+  ADMIN_TAB: "DASHBOARD ADMIN",
+
   // Company goals live in the SALES PYRAMID tab as fixed targets. They rarely
   // change, so they're config here (edit if the goal changes).
   goals: {
@@ -245,27 +284,54 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 
 // ---- low-level: fetch one tab as a 2-D array of cell values (JSONP) ----------
 let _gvSeq = 0;
-function fetchTab(gid) {
+function fetchTab(gid) { return gvizFetch('gid=' + gid); }
+function fetchTabByName(name) { return gvizFetch('sheet=' + encodeURIComponent(name)); }
+function gvizFetch(target) {
   return new Promise((resolve, reject) => {
     const cb = '__gv' + (_gvSeq++);
     const s = document.createElement('script');
     const cleanup = () => { try { delete window[cb]; } catch (_) { window[cb] = undefined; } s.remove(); };
-    const timer = setTimeout(() => { cleanup(); reject(new Error('Timed out loading sheet tab ' + gid)); }, 25000);
+    const timer = setTimeout(() => { cleanup(); reject(new Error('Timed out loading sheet tab ' + target)); }, 25000);
     window[cb] = (resp) => {
       clearTimeout(timer);
       try {
-        if (!resp || !resp.table) throw new Error('Empty response for tab ' + gid);
+        if (!resp || !resp.table) throw new Error('Empty response for tab ' + target);
         const grid = resp.table.rows.map(r =>
           (r.c || []).map(c => (c ? (c.v != null ? c.v : (c.f != null ? c.f : null)) : null)));
         resolve(grid);
       } catch (e) { reject(e); } finally { cleanup(); }
     };
-    s.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error('Network error loading tab ' + gid)); };
+    s.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error('Network error loading tab ' + target)); };
     // headers=0 keeps every row (no header-guessing); cache-buster = always fresh
     s.src = `https://docs.google.com/spreadsheets/d/${LIVE.SID}/gviz/tq` +
-            `?tqx=out:json;responseHandler:${cb}&gid=${gid}&headers=0&_=${Date.now()}`;
+            `?tqx=out:json;responseHandler:${cb}&${target}&headers=0&_=${Date.now()}`;
     document.head.appendChild(s);
   });
+}
+
+// Parse the optional DASHBOARD ADMIN tab. Returns lower-cased name sets.
+// If the tab doesn't exist, gviz silently returns the workbook's FIRST tab —
+// the header check below makes that (or any fetch failure) a harmless no-op.
+function parseAdmin(grid) {
+  const out = { agents: new Set(), reps: new Set() };
+  if (!grid || !grid.length) return out;
+  const heads = {};
+  for (let i = 0; i < Math.min(grid.length, 6); i++) {
+    for (let j = 0; j < (grid[i] || []).length; j++) {
+      const t = rowText(grid, i, j).toUpperCase();
+      if (t.startsWith('HIDDEN AGENT')) heads.agents = { r: i, c: j };
+      if (t.startsWith('HIDDEN DISPO')) heads.reps = { r: i, c: j };
+    }
+  }
+  for (const key of ['agents', 'reps']) {
+    const h = heads[key];
+    if (!h) continue;
+    for (let i = h.r + 1; i < grid.length; i++) {
+      const v = rowText(grid, i, h.c);
+      if (v) out[key].add(v.toLowerCase());
+    }
+  }
+  return out;
 }
 
 // ---- helpers ----------------------------------------------------------------
@@ -415,6 +481,8 @@ function parseRevenue(grid) {
     const name = rowText(grid, k, 1);
     if (!name) continue;
     const rec = { name, signedRev: pnum(cell(grid, k, 2)) || 0,
+      q1: pnum(cell(grid, k, 3)) || 0, q2: pnum(cell(grid, k, 4)) || 0,
+      q3: pnum(cell(grid, k, 5)) || 0, q4: pnum(cell(grid, k, 6)) || 0,
       closedRev: pnum(cell(grid, k, 7)) || 0, signedContracts: pnum(cell(grid, k, 8)) || 0,
       closedContracts: pnum(cell(grid, k, 9)) || 0, closeRate: pnum(cell(grid, k, 10)) };
     if (name === 'Total') { out.agentsTotal = rec; break; }
@@ -468,13 +536,23 @@ function parseDispo(grid) {
 // ---- top-level: pull everything and assemble the dashboard model ------------
 async function loadLive() {
   const today = new Date();
-  const [revG, mkG, dpG, acG, soG] = await Promise.all([
+  const [revG, mkG, dpG, acG, soG, admG] = await Promise.all([
     fetchTab(LIVE.GID.revenue), fetchTab(LIVE.GID.marketing), fetchTab(LIVE.GID.dispo),
     fetchTab(LIVE.GID.active), fetchTab(LIVE.GID.sold),
+    fetchTabByName(LIVE.ADMIN_TAB).catch(() => null),  // optional — no-op if absent
   ]);
   const revenue = parseRevenue(revG);
   const marketing = parseMarketing(mkG);
   const dispo = parseDispo(dpG);
+
+  // apply admin roster filters (hidden names stay in company totals)
+  const admin = parseAdmin(admG);
+  const hiddenAgents = revenue.agents
+    .filter(a => admin.agents.has(a.name.trim().toLowerCase())).map(a => a.name);
+  const hiddenReps = dispo.reps
+    .filter(r => admin.reps.has(r.member.trim().toLowerCase())).map(r => r.member);
+  revenue.agents = revenue.agents.filter(a => !admin.agents.has(a.name.trim().toLowerCase()));
+  dispo.reps = dispo.reps.filter(r => !admin.reps.has(r.member.trim().toLowerCase()));
   const active = parseActive(acG, today);
   const sold = parseSold(soG);
   const inventory = buildInventory(active);
@@ -490,6 +568,9 @@ async function loadLive() {
   const soldDoms = sold2026.map(p => p.dom).filter(x => x != null && x >= 0);
   const soldAvgDom = soldDoms.length ? soldDoms.reduce((a, b) => a + b, 0) / soldDoms.length : null;
   const oldest = active.filter(p => p.dom != null).sort((a, b) => b.dom - a.dom).slice(0, 8);
+  // lightweight 2026 closings for quarter-over-quarter aggregation
+  const closings = sold2026.map(p => ({ rep: p.rep, netRevenue: p.netRevenue || 0,
+    quarter: Math.floor(p.closeDate.getMonth() / 3) }));
 
   return {
     meta: {
@@ -498,8 +579,9 @@ async function loadLive() {
       goals: LIVE.goals,
       annualRevGoal: LIVE.goals.monthlyRevenue * 12,
       fetchedAt: today,
+      hidden: { agents: hiddenAgents, reps: hiddenReps },
     },
-    revenue, marketing, dispo, inventory, weekly, oldest, soldAvgDom,
+    revenue, marketing, dispo, inventory, weekly, oldest, soldAvgDom, closings,
   };
 }
 
@@ -555,6 +637,24 @@ function mkAgg(){
     goalSpend:sumGoalYtd('TOTAL AD SPEND'), goalContracts:sumGoalYtd('CONTRACTS SIGNED'),
     mLeads:monthly('TOTAL LEADS'), mOffers:monthly('OFFERS MADE'), mContracts:monthly('CONTRACTS SIGNED') };
 }
+// same funnel numbers but restricted to a set of month indices (0-based)
+function mkAggMonths(idxs){
+  const ch=M.marketing;
+  const sum=k=>ch.reduce((s,c)=>s+idxs.reduce((t,m)=>t+((((c.metrics[k]||{}).months)||[])[m]||0),0),0);
+  const leads=sum('TOTAL LEADS'), nv=sum('NON VIABLE LEADS'),
+        offers=sum('OFFERS MADE'), spend=sum('TOTAL AD SPEND'), contracts=sum('CONTRACTS SIGNED');
+  return { leads, nv, viable:leads-nv, offers, spend, contracts,
+    viability: leads? (leads-nv)/leads : null,
+    cpl: leads? spend/leads : null,
+    leadsPerContract: contracts? leads/contracts : null };
+}
+// latest month (<= today's month) with lead volume — the sheet lags a few weeks,
+// so "MTD" falls back to the newest logged month instead of showing zeros
+function mtdMonthIdx(){
+  const now=M.meta.fetchedAt.getMonth();
+  for(let m=now;m>=0;m--){ if(mkAggMonths([m]).leads>0) return m; }
+  return now;
+}
 
 // ============ charts ============
 function gridY(s,pad,ih,W,max,fmt){
@@ -565,7 +665,9 @@ function gridY(s,pad,ih,W,max,fmt){
 // grouped/overlaid revenue bars + goal line
 function revenueChart(months,goal,opts={}){
   const W=560,H=250,pad={l:48,r:12,t:16,b:26};
-  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b, bw=iw/12;
+  const gid='grad'+(revenueChart._n=(revenueChart._n||0)+1); // unique per chart —
+  // duplicate gradient ids resolve to the first (possibly hidden) copy and don't paint
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b, bw=iw/months.length;
   const max=Math.max(goal, ...months.map(m=>Math.max(m.closed,m.total)))*1.12||1;
   const y=v=>pad.t+ih-(v/max)*ih;
   const s={l:`<svg viewBox="0 0 ${W} ${H}" width="100%">`};
@@ -580,10 +682,10 @@ function revenueChart(months,goal,opts={}){
     s.l+=`<rect x="${cx+bw*0.18}" y="${ot}" width="${bw*0.64}" height="${Math.max(0,oh)}" rx="3" fill="#33406b"><title>${m.month} open: ${usd(m.projected)}</title></rect>`;
     // closed — bright, front
     const ct=y(m.closed), chh=pad.t+ih-ct;
-    s.l+=`<rect x="${cx+bw*0.28}" y="${ct}" width="${bw*0.44}" height="${Math.max(0,chh)}" rx="3" fill="url(#gr)"><title>${m.month} closed: ${usd(m.closed)}</title></rect>`;
-    s.l+=`<text x="${cx+bw*0.5}" y="${H-8}" fill="#5d6884" font-size="9" text-anchor="middle">${m.month[0]}</text>`;
+    s.l+=`<rect x="${cx+bw*0.28}" y="${ct}" width="${bw*0.44}" height="${Math.max(0,chh)}" rx="3" fill="url(#${gid})"><title>${m.month} closed: ${usd(m.closed)}</title></rect>`;
+    s.l+=`<text x="${cx+bw*0.5}" y="${H-8}" fill="#5d6884" font-size="9" text-anchor="middle">${months.length<=6?m.month:m.month[0]}</text>`;
   });
-  s.l+=`<defs><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs></svg>`;
+  s.l+=`<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs></svg>`;
   const d=document.createElement('div');d.innerHTML=s.l;return d;
 }
 // multi-series monthly bars (leads/offers/contracts) with shared scale per-series normalization
@@ -622,6 +724,7 @@ function funnel(agg){
 
 function weeklyChart(weeks,goal){
   const W=560,H=230,pad={l:46,r:12,t:16,b:30};
+  const gid='wgrad'+(weeklyChart._n=(weeklyChart._n||0)+1);
   const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b, bw=iw/weeks.length;
   const max=Math.max(goal,...weeks.map(w=>w.closed))*1.12||1;
   const y=v=>pad.t+ih-(v/max)*ih;
@@ -631,11 +734,11 @@ function weeklyChart(weeks,goal){
   s.l+=`<line x1="${pad.l}" y1="${gy}" x2="${W-pad.r}" y2="${gy}" stroke="#f5a623" stroke-width="1.4" stroke-dasharray="5 4"/>`;
   s.l+=`<text x="${W-pad.r}" y="${gy-4}" fill="#f5a623" font-size="9" text-anchor="end">goal ${usdK(goal)}</text>`;
   weeks.forEach((w,i)=>{const x=pad.l+i*bw+bw*0.18,bwid=bw*0.64,yy=y(w.closed),h=pad.t+ih-yy;
-    const col=w.closed===0?'#2a3248':(w.goalHit?'#2fbf71':'url(#gr)');
+    const col=w.closed===0?'#2a3248':(w.goalHit?'#2fbf71':`url(#${gid})`);
     s.l+=`<rect x="${x}" y="${yy}" width="${bwid}" height="${Math.max(0,h)}" rx="3" fill="${col}"><title>Week of ${w.label}: ${usd(w.closed)}${w.goalHit?' ✓ hit goal':''}</title></rect>`;
     if(i%2===0) s.l+=`<text x="${x+bwid/2}" y="${H-9}" fill="#5d6884" font-size="8" text-anchor="middle">${w.label}</text>`;
   });
-  s.l+=`<defs><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs></svg>`;
+  s.l+=`<defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs></svg>`;
   const d=document.createElement('div');d.innerHTML=s.l;return d;
 }
 function agingChart(inv){
@@ -677,11 +780,22 @@ function renderAll(){
   k1.appendChild(kpi('YTD Closed Revenue',usdK(ytdClosed),`of ${usdK(annualGoal)} annual goal`,
     `<div class="bar"><i style="width:${prog}%"></i></div><div class="kpi-sub" style="margin-top:6px">${prog.toFixed(1)}% to goal · ${closedC} deals closed</div>`));
   k1.appendChild(kpi('Open Pipeline',usdK(ytdOpen),'projected (not yet closed) revenue'));
-  k1.appendChild(kpi('Contracts Signed',intc(signedC),`${closedC} closed · ${pct(closedC/(signedC||1))} close rate`));
-  k1.appendChild(kpi('Marketing Leads (YTD)',intc(agg.leads),`${intc(agg.contracts)} contracts · ${num1(agg.leadsPerContract)} leads/contract`));
+  // MTD marketing numbers — falls back to the latest logged month if the
+  // current month hasn't been entered in the sheet yet
+  const nowIdx=M.meta.fetchedAt.getMonth();
+  const mIdx=mtdMonthIdx(), mAgg=mkAggMonths([mIdx]), isCur=mIdx===nowIdx;
+  const mtdNote=isCur? `${MONTH_NAMES[mIdx]} MTD` : `latest logged: ${MONTH_NAMES[mIdx]} (no ${MONTH_NAMES[nowIdx]} data yet)`;
+  k1.appendChild(kpi('Contracts Signed (MTD)',intc(mAgg.contracts),
+    `of ${M.meta.goals.monthlyContracts} monthly goal · ${mtdNote}`));
+  k1.appendChild(kpi('Marketing Leads (MTD)',intc(mAgg.leads),
+    `${intc(mAgg.offers)} offers · ${num1(mAgg.leadsPerContract)} leads/contract · ${mtdNote}`));
 
   $('#ovRevChart').innerHTML=''; $('#ovRevChart').appendChild(revenueChart(r.months,M.meta.goals.monthlyRevenue));
-  $('#ovFunnel').innerHTML=''; $('#ovFunnel').appendChild(funnel(agg));
+  $('#ovFunnelTitle').textContent=`Lead-to-Contract Funnel (${MONTH_NAMES[mIdx]}${isCur?' MTD':''})`;
+  $('#ovFunnelDesc').textContent=isCur
+    ? `Marketing funnel across all channels, ${MONTH_NAMES[mIdx]} month-to-date.`
+    : `No ${MONTH_NAMES[nowIdx]} marketing data logged in the sheet yet — showing ${MONTH_NAMES[mIdx]}, the latest logged month.`;
+  $('#ovFunnel').innerHTML=''; $('#ovFunnel').appendChild(funnel(mAgg));
 
   const topAgents=r.agents.slice().sort((a,b)=>b.closedRev-a.closedRev).slice(0,6);
   simpleTable($('#ovAgents'),[
@@ -697,6 +811,9 @@ function renderAll(){
     {h:'Closed',r:1,f:a=>intc(a.closed2026Contracts)},
     {h:'Closing %',r:1,f:a=>closeBadge(a.closingPct)},
   ],dp.reps.slice().sort((a,b)=>b.closed2026Rev-a.closed2026Rev));
+
+  renderYtd(agg,ytdClosed,ytdOpen);
+  renderQuarterly();
 
   // ---------- REVENUE ----------
   const k2=$('#revKpis'); k2.innerHTML='';
@@ -745,6 +862,8 @@ function renderAll(){
   k4.appendChild(kpi('Signed Revenue',usdK(at.signedRev),`${intc(at.signedContracts)} contracts signed`));
   k4.appendChild(kpi('Closed Revenue',usdK(at.closedRev),`${intc(at.closedContracts)} contracts closed`));
   k4.appendChild(kpi('Team Close Rate',pct(at.closeRate),'closed ÷ signed contracts'));
+  const hid=(M.meta.hidden&&M.meta.hidden.agents)||[];
+  $('#agHidden').innerHTML=hid.length?` <span class="badge b-mut">${hid.length} hidden from roster</span> <span class="mini">(${hid.join(', ')} — managed in the sheet's ${LIVE.ADMIN_TAB} tab; still counted in company totals)</span>`:'';
   renderAgents();
 
   // ---------- DISPO ----------
@@ -764,7 +883,7 @@ function renderAll(){
   ],M.oldest||[]);
 
   simpleTable($('#dpTable'),[
-    {h:'Rep',f:a=>a.member,cls:'name',ft:t=>'Total'},
+    {h:'Rep',f:a=>a.member,cls:'name',ft:t=>'Company Total'},
     {h:'Active',r:1,f:a=>intc(a.activeListings),ft:t=>intc(inv.count)},
     {h:'Avg DOM',r:1,f:a=>a.activeDom==null?'—':Math.round(a.activeDom),ft:t=>inv.avgDom==null?'—':Math.round(inv.avgDom)},
     {h:'2026 Closed Rev',r:1,f:a=>usdK(a.closed2026Rev),ft:t=>usdK(t.closed2026Rev)},
@@ -773,6 +892,118 @@ function renderAll(){
     {h:'Cancelled',r:1,f:a=>intc(a.cancelled),ft:t=>intc(t.cancelled)},
     {h:'Closing %',r:1,f:a=>closeBadge(a.closingPct),ft:t=>closeBadge(t.closingPct)},
   ],dp.reps.slice().sort((a,b)=>b.closed2026Rev-a.closed2026Rev),dp.total);
+}
+
+// ============ YTD view ============
+function renderYtd(agg,ytdClosed,ytdOpen){
+  const at=M.revenue.agentsTotal||{}, dt=(M.dispo&&M.dispo.total)||{};
+  const k=$('#ytdKpis'); k.innerHTML='';
+  const prog=Math.min(100,ytdClosed/M.meta.annualRevGoal*100);
+  k.appendChild(kpi('YTD Closed Revenue',usdK(ytdClosed),`of ${usdK(M.meta.annualRevGoal)} annual goal`,
+    `<div class="bar"><i style="width:${prog}%"></i></div><div class="kpi-sub" style="margin-top:6px">${prog.toFixed(1)}% to goal</div>`));
+  k.appendChild(kpi('Contracts Signed (YTD)',intc(at.signedContracts),
+    `${intc(at.closedContracts)} closed · ${pct(at.closeRate)} close rate`));
+  k.appendChild(kpi('Marketing Leads (YTD)',intc(agg.leads),
+    `${intc(agg.contracts)} contracts · ${num1(agg.leadsPerContract)} leads/contract`));
+  k.appendChild(kpi('Ad Spend (YTD)',usdK(agg.spend),`${usd(agg.cpl)} cost per lead`));
+  $('#ytdFunnel').innerHTML=''; $('#ytdFunnel').appendChild(funnel(agg));
+
+  const dBadge=(v,g,goodHigh=true,fmt=intc)=>{
+    if(g==null||!g) return '<span class="mini">—</span>';
+    const d=v-g, good=goodHigh? d>=0 : d<=0;
+    return `<span class="delta ${good?'up':'down'}">${d>=0?'+':''}${fmt(d)}</span>`;};
+  const rows=[
+    {m:'Closed Revenue',v:usdK(ytdClosed),g:usdK(M.meta.annualRevGoal)+' (yr)',d:dBadge(ytdClosed,M.meta.annualRevGoal,true,usdK)},
+    {m:'Open Pipeline (projected)',v:usdK(ytdOpen),g:'—',d:'<span class="mini">—</span>'},
+    {m:'Contracts Signed (agents)',v:intc(at.signedContracts),g:'—',d:'<span class="mini">—</span>'},
+    {m:'Contracts Closed',v:intc(at.closedContracts),g:'—',d:'<span class="mini">—</span>'},
+    {m:'Total Leads',v:intc(agg.leads),g:intc(agg.goalLeads),d:dBadge(agg.leads,agg.goalLeads)},
+    {m:'Viability %',v:pct(agg.viability),g:'75.0%',d:dBadge(agg.viability,0.75,true,x=>(x*100).toFixed(1)+'pt')},
+    {m:'Offers Made',v:intc(agg.offers),g:intc(agg.goalOffers),d:dBadge(agg.offers,agg.goalOffers)},
+    {m:'Contracts Signed (marketing)',v:intc(agg.contracts),g:intc(agg.goalContracts),d:dBadge(agg.contracts,agg.goalContracts)},
+    {m:'Ad Spend',v:usdK(agg.spend),g:usdK(agg.goalSpend),d:dBadge(agg.spend,agg.goalSpend,false,usdK)},
+    {m:'Cost per Lead',v:usd(agg.cpl),g:'—',d:'<span class="mini">—</span>'},
+    {m:'Dispo Closed Revenue',v:usdK(dt.closed2026Rev),g:'—',d:'<span class="mini">—</span>'},
+    {m:'Cancelled Contracts',v:intc(dt.cancelled),g:'—',d:'<span class="mini">—</span>'},
+  ];
+  simpleTable($('#ytdTable'),[
+    {h:'Metric',f:x=>x.m,cls:'name'},
+    {h:'YTD',r:1,f:x=>x.v},
+    {h:'YTD Goal',r:1,f:x=>x.g},
+    {h:'vs Goal',r:1,f:x=>x.d},
+  ],rows);
+}
+
+// ============ Quarterly view ============
+function renderQuarterly(){
+  const r=M.revenue;
+  const QIDX=[[0,1,2],[3,4,5],[6,7,8],[9,10,11]];
+  const qrev=[0,1,2,3].map(i=>r.quarters[i]||{q:'Q'+(i+1)+' 2026',projected:0,closed:0,total:0});
+  const qm=QIDX.map(ix=>mkAggMonths(ix));
+  const dealsQ=[0,1,2,3].map(q=>(M.closings||[]).filter(c=>c.quarter===q).length);
+
+  // focus = latest quarter with revenue or lead activity
+  let fq=3; while(fq>0 && !(qrev[fq].closed>0) && qm[fq].leads<=0) fq--;
+  const pv=fq>0? fq-1 : null;
+  const qoq=(cur,prev,fmt)=>{
+    if(pv==null||prev==null) return '<span class="mini">—</span>';
+    if(!prev) return '<span class="mini">no prior-quarter data</span>';
+    const ch=(cur-prev)/prev, good=ch>=0;
+    return `<span class="delta ${good?'up':'down'}">${ch>=0?'+':''}${(ch*100).toFixed(1)}% vs ${qrev[pv].q.split(' ')[0]}</span>`;};
+  const k=$('#qKpis'); k.innerHTML='';
+  k.appendChild(kpi(`${qrev[fq].q} Closed Revenue`,usdK(qrev[fq].closed),qoq(qrev[fq].closed,pv!=null?qrev[pv].closed:null)));
+  k.appendChild(kpi(`${qrev[fq].q} Leads`,intc(qm[fq].leads),qoq(qm[fq].leads,pv!=null?qm[pv].leads:null)));
+  k.appendChild(kpi(`${qrev[fq].q} Contracts`,intc(qm[fq].contracts),qoq(qm[fq].contracts,pv!=null?qm[pv].contracts:null)));
+  k.appendChild(kpi(`${qrev[fq].q} Offers`,intc(qm[fq].offers),qoq(qm[fq].offers,pv!=null?qm[pv].offers:null)));
+
+  $('#qChart').innerHTML='';
+  $('#qChart').appendChild(revenueChart(
+    qrev.map(q=>({month:q.q.split(' ')[0],projected:q.projected,closed:q.closed,total:q.total})),
+    M.meta.goals.monthlyRevenue*3));
+
+  // metric-by-quarter matrix
+  const metricRows=[
+    ['Closed Revenue',i=>usdK(qrev[i].closed)],
+    ['Open / Projected Revenue',i=>usdK(qrev[i].projected)],
+    ['Total Revenue',i=>usdK(qrev[i].total)],
+    ['Deals Closed',i=>intc(dealsQ[i])],
+    ['Total Leads',i=>intc(qm[i].leads)],
+    ['Viability %',i=>pct(qm[i].viability)],
+    ['Offers Made',i=>intc(qm[i].offers)],
+    ['Contracts Signed',i=>intc(qm[i].contracts)],
+    ['Ad Spend',i=>usdK(qm[i].spend)],
+    ['Cost per Lead',i=>qm[i].cpl!=null?usd(qm[i].cpl):'—'],
+    ['Leads per Contract',i=>qm[i].leadsPerContract!=null?num1(qm[i].leadsPerContract):'—'],
+  ];
+  const t=$('#qTable');
+  t.innerHTML='<thead><tr><th>Metric</th>'+qrev.map(q=>`<th class="r">${q.q}</th>`).join('')+'</tr></thead>';
+  const tb=el('tbody');
+  metricRows.forEach(([lbl,f])=>{
+    const tr=el('tr'); tr.appendChild(el('td','name',lbl));
+    for(let i=0;i<4;i++) tr.appendChild(el('td','r',f(i)));
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+
+  // agent closed revenue by quarter (visible roster)
+  simpleTable($('#qAgents'),[
+    {h:'Agent',f:a=>a.name,cls:'name'},
+    {h:'Q1',r:1,f:a=>usdK(a.q1)},{h:'Q2',r:1,f:a=>usdK(a.q2)},
+    {h:'Q3',r:1,f:a=>usdK(a.q3)},{h:'Q4',r:1,f:a=>usdK(a.q4)},
+    {h:'YTD',r:1,f:a=>usdK(a.closedRev)},
+  ],r.agents.slice().sort((a,b)=>b.closedRev-a.closedRev));
+
+  // dispo closed revenue by quarter from real closings
+  const reps={};
+  (M.closings||[]).forEach(c=>{
+    const x=reps[c.rep]||(reps[c.rep]={rep:c.rep,q:[0,0,0,0],total:0});
+    x.q[c.quarter]+=c.netRevenue; x.total+=c.netRevenue;});
+  simpleTable($('#qDispo'),[
+    {h:'Rep',f:x=>x.rep,cls:'name'},
+    {h:'Q1',r:1,f:x=>usdK(x.q[0])},{h:'Q2',r:1,f:x=>usdK(x.q[1])},
+    {h:'Q3',r:1,f:x=>usdK(x.q[2])},{h:'Q4',r:1,f:x=>usdK(x.q[3])},
+    {h:'Total',r:1,f:x=>usdK(x.total)},
+  ],Object.values(reps).sort((a,b)=>b.total-a.total));
 }
 
 function my(c,k){return (c.metrics[k]&&c.metrics[k].ytd)||0;}
@@ -799,7 +1030,7 @@ function renderAgents(){
   t.appendChild(tb);
   const at=M.revenue.agentsTotal;
   if(at){const tf=el('tfoot');const tr=el('tr');
-    tr.appendChild(el('td','','Total'));
+    tr.appendChild(el('td','','Company Total'));
     tr.appendChild(el('td','r',usdK(at.signedRev)));
     tr.appendChild(el('td','r',usdK(at.closedRev)));
     tr.appendChild(el('td','r',intc(at.signedContracts)));
