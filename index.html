@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHB Sales Scorecard 2026 — Live</title>
+<style>
+  :root{
+    --bg:#0f1422; --panel:#171d2e; --panel2:#1d2438; --line:#2a3248;
+    --txt:#e8ecf4; --muted:#93a0bd; --faint:#5d6884;
+    --brand:#5b8cff; --brand2:#7c5cff;
+    --good:#2fbf71; --ok:#3d9bff; --warn:#f5a623; --bad:#ef5066; --gold:#e8b341;
+    --shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  a{color:var(--brand);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:1280px;margin:0 auto;padding:0 22px 60px}
+
+  header.top{position:sticky;top:0;z-index:20;background:rgba(15,20,34,.86);
+    backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .topin{max-width:1280px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--brand),var(--brand2));
+    display:grid;place-items:center;font-weight:800;font-size:15px;letter-spacing:.5px;box-shadow:var(--shadow)}
+  .ttl{font-size:17px;font-weight:700;line-height:1.1}
+  .sub{font-size:12px;color:var(--muted)}
+  .live{margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .lampwrap{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted)}
+  .lamp{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(47,191,113,.6)}
+  .lamp.on{animation:pulse 1.6s infinite}
+  .lamp.err{background:var(--bad)}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(47,191,113,.5)}70%{box-shadow:0 0 0 7px rgba(47,191,113,0)}100%{box-shadow:0 0 0 0 rgba(47,191,113,0)}}
+  .btn{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:9px;
+    padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .btn:hover{border-color:var(--brand)}
+  .btn[disabled]{opacity:.5;cursor:default}
+  .spin{width:13px;height:13px;border:2px solid var(--faint);border-top-color:var(--brand);border-radius:50%;display:inline-block}
+  .spinning .spin{animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  nav.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:22px 0 18px}
+  .tab{padding:9px 16px;border-radius:10px;font-size:13.5px;font-weight:600;color:var(--muted);
+    cursor:pointer;border:1px solid transparent;user-select:none}
+  .tab:hover{color:var(--txt);background:var(--panel)}
+  .tab.on{color:#fff;background:linear-gradient(135deg,var(--brand),var(--brand2));box-shadow:var(--shadow)}
+
+  section.view{display:none;animation:fade .25s ease}
+  section.view.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  .grid{display:grid;gap:16px}
+  .g4{grid-template-columns:repeat(4,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  @media(max-width:980px){.g4{grid-template-columns:repeat(2,1fr)}.g3,.g2{grid-template-columns:1fr}}
+  @media(max-width:560px){.g4{grid-template-columns:1fr}}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 2px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.6px}
+  .kpi{font-size:29px;font-weight:800;letter-spacing:-.5px;margin:6px 0 2px}
+  .kpi-sub{font-size:12.5px;color:var(--muted)}
+  .bar{height:9px;border-radius:6px;background:var(--panel2);overflow:hidden;margin-top:10px}
+  .bar > i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,var(--brand),var(--brand2))}
+  .delta{font-size:12px;font-weight:700}
+  .up{color:#5fe39b}.down{color:#ff8295}
+
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px;box-shadow:var(--shadow);margin-top:16px}
+  .panel h2{margin:0 0 4px;font-size:16px;font-weight:700}
+  .panel .desc{font-size:12.5px;color:var(--muted);margin-bottom:16px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);cursor:pointer;user-select:none}
+  th.r,td.r{text-align:right}
+  tbody tr:hover{background:var(--panel2)}
+  td.name{font-weight:600}
+  tfoot td{font-weight:700;border-top:2px solid var(--line);color:var(--txt)}
+  .tablewrap{overflow-x:auto;border-radius:12px}
+
+  .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:700}
+  .b-good{background:rgba(47,191,113,.16);color:#5fe39b}
+  .b-ok{background:rgba(61,155,255,.16);color:#7db9ff}
+  .b-warn{background:rgba(245,166,35,.16);color:#ffc662}
+  .b-bad{background:rgba(239,80,102,.16);color:#ff8295}
+  .b-mut{background:rgba(147,160,189,.14);color:#aab4cc}
+  .pill{font-size:11px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);padding:4px 10px;border-radius:999px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:12px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .mini{font-size:11.5px;color:var(--muted)}
+
+  .banner{margin:18px 0;padding:14px 18px;border-radius:12px;background:rgba(239,80,102,.12);
+    border:1px solid rgba(239,80,102,.4);color:#ff9aa8;font-size:13px;display:none}
+  .banner.show{display:block}
+  .overlay{position:fixed;inset:0;background:rgba(15,20,34,.75);display:grid;place-items:center;z-index:40}
+  .overlay .box{display:flex;flex-direction:column;align-items:center;gap:14px;color:var(--muted);font-size:14px}
+  .overlay .spin{width:30px;height:30px;border-width:3px;animation:spin .7s linear infinite}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="topin">
+    <div class="logo">SHB</div>
+    <div>
+      <div class="ttl">SHB Sales Scorecard 2026</div>
+      <div class="sub">Live management dashboard</div>
+    </div>
+    <div class="live">
+      <span class="lampwrap"><i class="lamp on" id="lamp"></i><span id="status">Connecting…</span></span>
+      <a id="srcLink" target="_blank" rel="noopener" class="pill">Open Google Sheet ↗</a>
+      <button class="btn" id="refreshBtn"><span class="spin"></span>Refresh</button>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="banner" id="banner"></div>
+
+  <nav class="tabs" id="tabs">
+    <div class="tab on" data-v="overview">Overview</div>
+    <div class="tab" data-v="revenue">Revenue</div>
+    <div class="tab" data-v="marketing">Marketing</div>
+    <div class="tab" data-v="agents">Agents</div>
+    <div class="tab" data-v="dispo">Disposition</div>
+  </nav>
+
+  <section class="view on" id="v-overview">
+    <div class="grid g4" id="ovKpis"></div>
+    <div class="grid g2" style="margin-top:16px">
+      <div class="panel"><h2>Monthly Revenue vs Goal</h2>
+        <div class="desc">Closed &amp; open (projected) revenue per month against the $1.0M monthly goal.</div>
+        <div id="ovRevChart"></div></div>
+      <div class="panel"><h2>Lead-to-Contract Funnel (YTD)</h2>
+        <div class="desc">Marketing funnel across all channels, year to date.</div>
+        <div id="ovFunnel"></div></div>
+    </div>
+    <div class="grid g2">
+      <div class="panel"><h2>Top Acquisition Agents</h2><div class="desc">By closed revenue, YTD.</div>
+        <div class="tablewrap"><table id="ovAgents"></table></div></div>
+      <div class="panel"><h2>Disposition Team</h2><div class="desc">2026 closed revenue by rep.</div>
+        <div class="tablewrap"><table id="ovDispo"></table></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-revenue">
+    <div class="grid g4" id="revKpis"></div>
+    <div class="panel"><h2>Monthly Projected vs Closed Revenue</h2>
+      <div class="desc">Dashed line = $1.0M monthly company goal.</div><div id="revChart"></div></div>
+    <div class="panel"><h2>Weekly Closing Pace</h2>
+      <div class="desc">Closed revenue per week vs the $250K weekly goal, from real closing dates. <span id="weekHit"></span></div>
+      <div id="weekChart"></div></div>
+    <div class="grid g2">
+      <div class="panel"><h2>Quarterly Breakdown</h2><div class="desc">Projected, closed and total revenue by quarter.</div>
+        <div class="tablewrap"><table id="revQuarters"></table></div></div>
+      <div class="panel"><h2>Monthly Detail</h2><div class="desc">Source: REVENUE FORECAST tab.</div>
+        <div class="tablewrap"><table id="revMonths"></table></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-marketing">
+    <div class="grid g4" id="mkKpis"></div>
+    <div class="panel"><h2>Monthly Marketing Trend</h2>
+      <div class="desc">Total leads, offers made and contracts signed per month (all channels).</div>
+      <div id="mkChart"></div>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--brand)"></i>Leads</span>
+        <span><i class="sw" style="background:var(--gold)"></i>Offers made</span>
+        <span><i class="sw" style="background:var(--good)"></i>Contracts signed</span></div>
+    </div>
+    <div class="panel"><h2>Channel Performance (YTD)</h2>
+      <div class="desc">Per-channel funnel. Viability % = viable leads ÷ total leads. CPL = ad spend ÷ leads.</div>
+      <div class="tablewrap"><table id="mkTable"></table></div></div>
+  </section>
+
+  <section class="view" id="v-agents">
+    <div class="grid g4" id="agKpis"></div>
+    <div class="panel">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h2 style="margin:0">Acquisition Agent Leaderboard</h2>
+        <span class="pill">Sorted by closed revenue · click a column to sort</span>
+      </div>
+      <div class="desc" style="margin-top:6px">Signed = contract value brought in. Closed = revenue realized. Close rate = closed ÷ signed contracts.</div>
+      <div class="tablewrap"><table id="agTable"></table></div></div>
+  </section>
+
+  <section class="view" id="v-dispo">
+    <div class="grid g4" id="dpKpis"></div>
+    <div class="grid g2">
+      <div class="panel"><h2>Active Inventory Aging</h2>
+        <div class="desc">Days on market for current listings. Source: DISPOSITION ledger.</div>
+        <div id="dpAging"></div></div>
+      <div class="panel"><h2>Aging Watch — Oldest Active Listings</h2>
+        <div class="desc">Longest time on market and still not closed.</div>
+        <div class="tablewrap"><table id="dpOldest"></table></div></div>
+    </div>
+    <div class="panel"><h2>Disposition Reps</h2>
+      <div class="desc">Assigned vs closed performance + live listing load. Closing % = closed ÷ assigned contracts.</div>
+      <div class="tablewrap"><table id="dpTable"></table></div></div>
+  </section>
+</div>
+
+<div class="overlay" id="overlay"><div class="box"><span class="spin"></span><span>Loading live data from Google Sheets…</span></div></div>
+
+<script>
+/* ---- live.js (inlined) ---- */
+// ============================================================================
+//  live.js — pulls the SHB scorecard LIVE from the Google Sheet (no backend).
+//
+//  How it works: Google Sheets' gviz endpoint returns each tab as JSON wrapped
+//  in a JS callback. We load it via a <script> tag (JSONP), which works
+//  cross-origin and even from a double-clicked file:// page — no API key, no
+//  CORS, no server. A cache-buster forces a fresh pull every refresh.
+//
+//  The sheet must stay shared as "Anyone with the link can view".
+// ============================================================================
+
+const LIVE = {
+  // Spreadsheet id + the tabs we read (discovered from the workbook).
+  SID: "1b4IHVzJ238qEBb3zliedc6W72CMnTV-aynTlZ4UI0EA",
+  GID: {
+    revenue:   "723583892",   // REVENUE FORECAST  (monthly/quarterly + agent table)
+    marketing: "1291488355",  // MARKETING CHANNEL DATA
+    dispo:     "241341633",   // Dispo Rev Tracker (per-rep summary)
+    active:    "1367469000",  // DISPOSITION (active listings ledger)
+    sold:      "280965259",   // SOLD PROPERTIES (closed deals ledger)
+  },
+
+  // Company goals live in the SALES PYRAMID tab as fixed targets. They rarely
+  // change, so they're config here (edit if the goal changes).
+  goals: {
+    monthlyRevenue: 1000000,     // COMPANY CLOSED REVENUE GOAL (monthly)
+    weeklyRevenue: 250000,       // COMPANY CLOSED REVENUE GOAL (weekly)
+    monthlyContracts: 33,        // COMPANY CONTRACT SIGNED GOAL (monthly)
+  },
+
+  get sourceUrl() {
+    return `https://docs.google.com/spreadsheets/d/${this.SID}/edit`;
+  },
+};
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ---- low-level: fetch one tab as a 2-D array of cell values (JSONP) ----------
+let _gvSeq = 0;
+function fetchTab(gid) {
+  return new Promise((resolve, reject) => {
+    const cb = '__gv' + (_gvSeq++);
+    const s = document.createElement('script');
+    const cleanup = () => { try { delete window[cb]; } catch (_) { window[cb] = undefined; } s.remove(); };
+    const timer = setTimeout(() => { cleanup(); reject(new Error('Timed out loading sheet tab ' + gid)); }, 25000);
+    window[cb] = (resp) => {
+      clearTimeout(timer);
+      try {
+        if (!resp || !resp.table) throw new Error('Empty response for tab ' + gid);
+        const grid = resp.table.rows.map(r =>
+          (r.c || []).map(c => (c ? (c.v != null ? c.v : (c.f != null ? c.f : null)) : null)));
+        resolve(grid);
+      } catch (e) { reject(e); } finally { cleanup(); }
+    };
+    s.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error('Network error loading tab ' + gid)); };
+    // headers=0 keeps every row (no header-guessing); cache-buster = always fresh
+    s.src = `https://docs.google.com/spreadsheets/d/${LIVE.SID}/gviz/tq` +
+            `?tqx=out:json;responseHandler:${cb}&gid=${gid}&headers=0&_=${Date.now()}`;
+    document.head.appendChild(s);
+  });
+}
+
+// ---- helpers ----------------------------------------------------------------
+function cell(grid, i, j) { return (grid[i] && grid[i][j] != null) ? grid[i][j] : null; }
+function rowText(grid, i, j) { const v = cell(grid, i, j); return v == null ? '' : String(v).trim(); }
+
+// Parse a cell into a number. Handles plain numbers, "$1,234.56", "(80,000)"
+// negatives, and "27.23%" → 0.2723. Non-numeric placeholders → null.
+function pnum(v) {
+  if (v == null || v === '') return null;
+  if (typeof v === 'number') return v;
+  let s = String(v).trim();
+  if (/need lead|no signed|n\/?a|^yes$|^no$/i.test(s)) return null;
+  const isPct = s.includes('%');
+  const neg = /^\(.*\)$/.test(s);
+  s = s.replace(/[(),$%\s]/g, '');
+  let n = parseFloat(s);
+  if (isNaN(n)) return null;
+  if (neg) n = -n;
+  if (isPct) n = n / 100;
+  return n;
+}
+
+// Parse a date cell. gviz gives dates as "Date(2025,8,26)" (month 0-based) with
+// a formatted fallback like "9/26/2025".
+function pdate(v) {
+  if (v == null || v === '') return null;
+  if (v instanceof Date) return v;
+  const s = String(v);
+  const m = s.match(/^Date\((\d+),(\d+),(\d+)/);
+  if (m) return new Date(+m[1], +m[2], +m[3]);
+  const d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+const DAY = 86400000;
+function daysBetween(a, b) { return (a && b) ? Math.round((b - a) / DAY) : null; }
+// Monday that starts the week containing d (the sheet's weeks run Mon-Sun).
+function weekMonday(d) {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7));
+  return x;
+}
+
+// Sub-row labels inside the property ledgers (not actual property records).
+const LEDGER_SUBROWS = new Set(['Showings', 'Offers', 'Zillow Views', 'Dispo Rep', 'Address', '']);
+
+// DISPOSITION tab = currently-active listings. Address in col0.
+function parseActive(grid, today) {
+  const out = [];
+  for (let i = 1; i < grid.length; i++) {
+    const addr = rowText(grid, i, 0);
+    if (!addr || LEDGER_SUBROWS.has(addr)) continue;
+    const rep = rowText(grid, i, 1);
+    if (!rep) continue;
+    const listDate = pdate(cell(grid, i, 7));
+    const underContract = pdate(cell(grid, i, 11)) != null;
+    out.push({
+      address: addr, rep, listingAgent: rowText(grid, i, 2),
+      listPrice: pnum(cell(grid, i, 4)) || pnum(cell(grid, i, 3)) || 0,
+      netRevenue: pnum(cell(grid, i, 16)) || 0,
+      listDate, status: underContract ? 'Under Contract' : 'Listed',
+      dom: listDate ? Math.round((today - listDate) / DAY) : null,
+    });
+  }
+  return out;
+}
+
+// SOLD PROPERTIES tab. col0 = assigned year, address in col1.
+function parseSold(grid) {
+  const out = [];
+  for (let i = 1; i < grid.length; i++) {
+    const addr = rowText(grid, i, 1);
+    if (!addr || LEDGER_SUBROWS.has(addr)) continue;
+    const listDate = pdate(cell(grid, i, 8));
+    const closeDate = pdate(cell(grid, i, 13));
+    out.push({
+      address: addr, rep: rowText(grid, i, 2), listDate, closeDate,
+      netRevenue: pnum(cell(grid, i, 17)) || 0,
+      dom: daysBetween(listDate, closeDate),
+    });
+  }
+  return out;
+}
+
+// Build inventory aging + per-rep active-listing stats from the active ledger.
+function buildInventory(active) {
+  const inv = { count: active.length, value: 0, avgDom: null,
+    aging: { '0-30': 0, '31-60': 0, '61-90': 0, '90+': 0 }, byRep: {} };
+  let domSum = 0, domN = 0;
+  for (const p of active) {
+    inv.value += p.listPrice || 0;   // total active inventory at list price
+    if (p.dom != null) {
+      domSum += p.dom; domN++;
+      const b = p.dom <= 30 ? '0-30' : p.dom <= 60 ? '31-60' : p.dom <= 90 ? '61-90' : '90+';
+      inv.aging[b]++;
+    }
+    const r = inv.byRep[p.rep] || (inv.byRep[p.rep] = { count: 0, domSum: 0, domN: 0 });
+    r.count++; if (p.dom != null) { r.domSum += p.dom; r.domN++; }
+  }
+  inv.avgDom = domN ? domSum / domN : null;
+  inv.aged60 = inv.aging['61-90'] + inv.aging['90+'];
+  return inv;
+}
+
+// Weekly closed-revenue cadence from real closing dates, year-to-date.
+function buildWeekly(sold, today, goal) {
+  const sold2026 = sold.filter(p => p.closeDate && p.closeDate.getFullYear() === 2026 && p.netRevenue);
+  const byWeek = {};
+  for (const p of sold2026) {
+    const k = weekMonday(p.closeDate).getTime();
+    byWeek[k] = (byWeek[k] || 0) + p.netRevenue;
+  }
+  const end = weekMonday(today);
+  const out = [];
+  // advance with setDate (not +7*DAY) so DST hour-shifts don't desync the keys
+  for (let w = weekMonday(new Date(2026, 0, 5)); w <= end; w.setDate(w.getDate() + 7)) {
+    const closed = byWeek[w.getTime()] || 0;
+    out.push({ weekStart: new Date(w), label: (w.getMonth() + 1) + '/' + w.getDate(),
+      closed, goalHit: closed >= goal });
+  }
+  return out;
+}
+
+// ---- parsers ----------------------------------------------------------------
+function parseRevenue(grid) {
+  const out = { months: [], quarters: [], totals: null, agents: [], agentsTotal: null };
+  let i = 0;
+  for (; i < grid.length; i++) if (rowText(grid, i, 1) === 'Month') break;
+  for (let k = i + 1; k < grid.length; k++) {
+    const name = rowText(grid, k, 1);
+    if (!MONTH_NAMES.includes(name)) break;
+    out.months.push({ month: name, projected: pnum(cell(grid, k, 3)) || 0,
+      closed: pnum(cell(grid, k, 4)) || 0, total: pnum(cell(grid, k, 5)) || 0 });
+  }
+  for (let k = 0; k < grid.length; k++) {
+    const t = rowText(grid, k, 1);
+    if (/^Q[1-4]\s/.test(t)) out.quarters.push({ q: t, projected: pnum(cell(grid, k, 3)) || 0,
+      closed: pnum(cell(grid, k, 4)) || 0, total: pnum(cell(grid, k, 5)) || 0 });
+    if (t === 'Total' && out.totals == null && rowText(grid, k, 0) === '' && pnum(cell(grid, k, 5)) != null
+        && pnum(cell(grid, k, 8)) == null)
+      out.totals = { projected: pnum(cell(grid, k, 3)) || 0, closed: pnum(cell(grid, k, 4)) || 0,
+        total: pnum(cell(grid, k, 5)) || 0 };
+  }
+  let a = 0;
+  for (; a < grid.length; a++) if (rowText(grid, a, 1) === 'Acquisition Agent') break;
+  for (let k = a + 1; k < grid.length; k++) {
+    const name = rowText(grid, k, 1);
+    if (!name) continue;
+    const rec = { name, signedRev: pnum(cell(grid, k, 2)) || 0,
+      closedRev: pnum(cell(grid, k, 7)) || 0, signedContracts: pnum(cell(grid, k, 8)) || 0,
+      closedContracts: pnum(cell(grid, k, 9)) || 0, closeRate: pnum(cell(grid, k, 10)) };
+    if (name === 'Total') { out.agentsTotal = rec; break; }
+    out.agents.push(rec);
+  }
+  return out;
+}
+
+const MK_METRICS = ['TOTAL LEADS','TOTAL NV LEADS','NON VIABLE LEADS','OPT OUT','SPAM','WHOLESALERS',
+  'VIABILITY %','OFFERS MADE','TOTAL AD SPEND','CPL','CONTRACTS SIGNED','LEADS PER SIGNED CONTRACT'];
+function parseMarketing(grid) {
+  const channels = [];
+  let cur = null;
+  for (let i = 0; i < grid.length; i++) {
+    const label = rowText(grid, i, 2);
+    if (!label) continue;
+    if (/^MARKETING METRICS/i.test(label)) {
+      const name = label.replace(/^MARKETING METRICS/i, '').trim() || 'Other';
+      cur = { name, metrics: {} };
+      channels.push(cur);
+      continue;
+    }
+    if (cur && MK_METRICS.includes(label.replace(/\s+$/, '').toUpperCase()) || (cur && MK_METRICS.includes(label.toUpperCase()))) {
+      const key = label.trim().toUpperCase().replace(/\s+/g, ' ');
+      const months = MONTH_NAMES.map((_, m) => pnum(cell(grid, i, 4 + m)));
+      cur.metrics[key] = { goal: pnum(cell(grid, i, 3)), months,
+        ytd: pnum(cell(grid, i, 16)), ytdGoal: pnum(cell(grid, i, 17)) };
+    }
+  }
+  // keep only channels that actually have lead volume
+  return channels.filter(c => (c.metrics['TOTAL LEADS'] && (c.metrics['TOTAL LEADS'].ytd || 0) > 0));
+}
+
+function parseDispo(grid) {
+  const reps = []; let total = null;
+  let h = 0; for (; h < grid.length; h++) if (rowText(grid, h, 0) === 'Member') break;
+  for (let k = h + 1; k < grid.length; k++) {
+    const name = rowText(grid, k, 0);
+    if (!name) continue;
+    const rec = { member: name, assignedRev: pnum(cell(grid, k, 1)) || 0,
+      assignedContracts: pnum(cell(grid, k, 2)) || 0, closed2025Rev: pnum(cell(grid, k, 3)) || 0,
+      closed2025Contracts: pnum(cell(grid, k, 4)) || 0, closed2026Rev: pnum(cell(grid, k, 5)) || 0,
+      closed2026Contracts: pnum(cell(grid, k, 6)) || 0, cancelled: pnum(cell(grid, k, 7)) || 0,
+      closingPct: pnum(cell(grid, k, 8)) };
+    if (name === 'Total') { total = rec; break; }
+    reps.push(rec);
+  }
+  return { reps, total };
+}
+
+// ---- top-level: pull everything and assemble the dashboard model ------------
+async function loadLive() {
+  const today = new Date();
+  const [revG, mkG, dpG, acG, soG] = await Promise.all([
+    fetchTab(LIVE.GID.revenue), fetchTab(LIVE.GID.marketing), fetchTab(LIVE.GID.dispo),
+    fetchTab(LIVE.GID.active), fetchTab(LIVE.GID.sold),
+  ]);
+  const revenue = parseRevenue(revG);
+  const marketing = parseMarketing(mkG);
+  const dispo = parseDispo(dpG);
+  const active = parseActive(acG, today);
+  const sold = parseSold(soG);
+  const inventory = buildInventory(active);
+  const weekly = buildWeekly(sold, today, LIVE.goals.weeklyRevenue);
+
+  // merge active-listing stats onto each dispo rep (matched by name)
+  dispo.reps.forEach(r => {
+    const s = inventory.byRep[r.member] || inventory.byRep[r.member.trim()];
+    r.activeListings = s ? s.count : 0;
+    r.activeDom = (s && s.domN) ? s.domSum / s.domN : null;
+  });
+  const sold2026 = sold.filter(p => p.closeDate && p.closeDate.getFullYear() === 2026);
+  const soldDoms = sold2026.map(p => p.dom).filter(x => x != null && x >= 0);
+  const soldAvgDom = soldDoms.length ? soldDoms.reduce((a, b) => a + b, 0) / soldDoms.length : null;
+  const oldest = active.filter(p => p.dom != null).sort((a, b) => b.dom - a.dom).slice(0, 8);
+
+  return {
+    meta: {
+      title: 'SHB Sales Scorecard 2026',
+      sourceUrl: LIVE.sourceUrl,
+      goals: LIVE.goals,
+      annualRevGoal: LIVE.goals.monthlyRevenue * 12,
+      fetchedAt: today,
+    },
+    revenue, marketing, dispo, inventory, weekly, oldest, soldAvgDom,
+  };
+}
+
+</script>
+<script>
+const $ = s => document.querySelector(s);
+const el = (t,c,h)=>{const e=document.createElement(t);if(c)e.className=c;if(h!=null)e.innerHTML=h;return e;};
+let M = null;  // the live model
+
+// ---- formatters ----
+const usd = n => n==null? '—' : (n<0?'-':'')+'$'+Math.round(Math.abs(n)).toLocaleString();
+const usdK = n => { if(n==null) return '—'; const a=Math.abs(n); const s=n<0?'-':'';
+  if(a>=1e6) return s+'$'+(a/1e6).toFixed(2)+'M'; if(a>=1e3) return s+'$'+Math.round(a/1e3)+'K'; return s+'$'+Math.round(a); };
+const pct = n => n==null? '—' : (n*100).toFixed(1)+'%';
+const intc = n => n==null? '—' : Math.round(n).toLocaleString();
+const num1 = n => n==null? '—' : (Math.round(n*10)/10).toLocaleString();
+
+$('#srcLink').href = LIVE.sourceUrl;
+
+// ---- tabs ----
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+  t.classList.add('on'); $('#v-'+t.dataset.v).classList.add('on');
+});
+
+function kpi(title,val,sub,extra){
+  const c=el('div','card');
+  c.innerHTML=`<h3>${title}</h3><div class="kpi">${val}</div><div class="kpi-sub">${sub||''}</div>`;
+  if(extra) c.insertAdjacentHTML('beforeend',extra);
+  return c;
+}
+function deltaTag(actual,goal,goodHigh=true){
+  if(goal==null||goal===0) return '';
+  const d=actual-goal, goodd=goodHigh? d>=0 : d<=0;
+  return `<span class="delta ${goodd?'up':'down'}">${d>=0?'+':''}${usdK(d)} vs goal</span>`;
+}
+
+// ============ marketing aggregation ============
+const ADDITIVE=['TOTAL LEADS','NON VIABLE LEADS','WHOLESALERS','OFFERS MADE','TOTAL AD SPEND','CONTRACTS SIGNED'];
+function mkAgg(){
+  const ch=M.marketing;
+  const sumYtd=k=>ch.reduce((s,c)=>s+((c.metrics[k]&&c.metrics[k].ytd)||0),0);
+  const sumGoalYtd=k=>ch.reduce((s,c)=>s+((c.metrics[k]&&c.metrics[k].ytdGoal)||0),0);
+  const monthly=k=>MONTH_NAMES.map((_,m)=>ch.reduce((s,c)=>s+(((c.metrics[k]&&c.metrics[k].months[m]))||0),0));
+  const leads=sumYtd('TOTAL LEADS'), nv=sumYtd('NON VIABLE LEADS'),
+        offers=sumYtd('OFFERS MADE'), spend=sumYtd('TOTAL AD SPEND'), contracts=sumYtd('CONTRACTS SIGNED');
+  return { leads, nv, viable:leads-nv, offers, spend, contracts,
+    viability: leads? (leads-nv)/leads : null,
+    cpl: leads? spend/leads : null,
+    leadsPerContract: contracts? leads/contracts : null,
+    goalLeads:sumGoalYtd('TOTAL LEADS'), goalOffers:sumGoalYtd('OFFERS MADE'),
+    goalSpend:sumGoalYtd('TOTAL AD SPEND'), goalContracts:sumGoalYtd('CONTRACTS SIGNED'),
+    mLeads:monthly('TOTAL LEADS'), mOffers:monthly('OFFERS MADE'), mContracts:monthly('CONTRACTS SIGNED') };
+}
+
+// ============ charts ============
+function gridY(s,pad,ih,W,max,fmt){
+  for(let g=0;g<=4;g++){const gv=max*g/4,yy=pad.t+ih-(gv/max)*ih;
+    s.l+=`<line x1="${pad.l}" y1="${yy}" x2="${W-pad.r}" y2="${yy}" stroke="#2a3248"/>`;
+    s.l+=`<text x="${pad.l-6}" y="${yy+3}" fill="#5d6884" font-size="9" text-anchor="end">${fmt(gv)}</text>`;}
+}
+// grouped/overlaid revenue bars + goal line
+function revenueChart(months,goal,opts={}){
+  const W=560,H=250,pad={l:48,r:12,t:16,b:26};
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b, bw=iw/12;
+  const max=Math.max(goal, ...months.map(m=>Math.max(m.closed,m.total)))*1.12||1;
+  const y=v=>pad.t+ih-(v/max)*ih;
+  const s={l:`<svg viewBox="0 0 ${W} ${H}" width="100%">`};
+  gridY(s,pad,ih,W,max,usdK);
+  const gy=y(goal);
+  s.l+=`<line x1="${pad.l}" y1="${gy}" x2="${W-pad.r}" y2="${gy}" stroke="#f5a623" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  s.l+=`<text x="${W-pad.r}" y="${gy-4}" fill="#f5a623" font-size="9" text-anchor="end">goal ${usdK(goal)}</text>`;
+  months.forEach((m,i)=>{
+    const cx=pad.l+i*bw;
+    // open (projected) — lighter, behind
+    const ot=y(m.total), oh=pad.t+ih-ot;
+    s.l+=`<rect x="${cx+bw*0.18}" y="${ot}" width="${bw*0.64}" height="${Math.max(0,oh)}" rx="3" fill="#33406b"><title>${m.month} open: ${usd(m.projected)}</title></rect>`;
+    // closed — bright, front
+    const ct=y(m.closed), chh=pad.t+ih-ct;
+    s.l+=`<rect x="${cx+bw*0.28}" y="${ct}" width="${bw*0.44}" height="${Math.max(0,chh)}" rx="3" fill="url(#gr)"><title>${m.month} closed: ${usd(m.closed)}</title></rect>`;
+    s.l+=`<text x="${cx+bw*0.5}" y="${H-8}" fill="#5d6884" font-size="9" text-anchor="middle">${m.month[0]}</text>`;
+  });
+  s.l+=`<defs><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs></svg>`;
+  const d=document.createElement('div');d.innerHTML=s.l;return d;
+}
+// multi-series monthly bars (leads/offers/contracts) with shared scale per-series normalization
+function marketingChart(agg){
+  const W=560,H=250,pad={l:42,r:12,t:16,b:26};
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b, bw=iw/12, gw=bw*0.74/3;
+  const max=Math.max(...agg.mLeads,1)*1.12;
+  const y=v=>pad.t+ih-(v/max)*ih;
+  const s={l:`<svg viewBox="0 0 ${W} ${H}" width="100%">`};
+  gridY(s,pad,ih,W,max,intc);
+  const series=[['mLeads','var(--brand)','#5b8cff'],['mOffers','#e8b341','#e8b341'],['mContracts','#2fbf71','#2fbf71']];
+  for(let i=0;i<12;i++){
+    const base=pad.l+i*bw+bw*0.13;
+    series.forEach((se,si)=>{const v=agg[se[0]][i]||0,yy=y(v),h=pad.t+ih-yy,x=base+si*gw;
+      s.l+=`<rect x="${x}" y="${yy}" width="${gw*0.86}" height="${Math.max(0,h)}" rx="2" fill="${se[2]}"><title>${MONTH_NAMES[i]} ${se[0].slice(1)}: ${intc(v)}</title></rect>`;});
+    s.l+=`<text x="${pad.l+i*bw+bw*0.5}" y="${H-8}" fill="#5d6884" font-size="9" text-anchor="middle">${MONTH_NAMES[i][0]}</text>`;
+  }
+  s.l+='</svg>';
+  const d=document.createElement('div');d.innerHTML=s.l;return d;
+}
+function funnel(agg){
+  const steps=[['Total leads',agg.leads,'var(--brand)'],['Viable leads',agg.viable,'#5b8cff'],
+    ['Offers made',agg.offers,'#e8b341'],['Contracts signed',agg.contracts,'#2fbf71']];
+  const max=Math.max(...steps.map(s=>s[1]||0),1);
+  const d=document.createElement('div');
+  steps.forEach((st,i)=>{
+    const w=(st[1]||0)/max*100, conv=i>0&&steps[i-1][1]? (st[1]/steps[i-1][1]*100).toFixed(1)+'%':'';
+    d.appendChild(el('div','',`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px">
+        <span>${st[0]} ${conv?`<span class="mini">(${conv} of prev)</span>`:''}</span>
+        <span style="font-weight:700">${intc(st[1])}</span></div>
+      <div class="bar"><i style="width:${Math.max(2,w)}%;background:${st[2]}"></i></div>`));
+  });
+  return d;
+}
+
+function weeklyChart(weeks,goal){
+  const W=560,H=230,pad={l:46,r:12,t:16,b:30};
+  const iw=W-pad.l-pad.r, ih=H-pad.t-pad.b, bw=iw/weeks.length;
+  const max=Math.max(goal,...weeks.map(w=>w.closed))*1.12||1;
+  const y=v=>pad.t+ih-(v/max)*ih;
+  const s={l:`<svg viewBox="0 0 ${W} ${H}" width="100%">`};
+  gridY(s,pad,ih,W,max,usdK);
+  const gy=y(goal);
+  s.l+=`<line x1="${pad.l}" y1="${gy}" x2="${W-pad.r}" y2="${gy}" stroke="#f5a623" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+  s.l+=`<text x="${W-pad.r}" y="${gy-4}" fill="#f5a623" font-size="9" text-anchor="end">goal ${usdK(goal)}</text>`;
+  weeks.forEach((w,i)=>{const x=pad.l+i*bw+bw*0.18,bwid=bw*0.64,yy=y(w.closed),h=pad.t+ih-yy;
+    const col=w.closed===0?'#2a3248':(w.goalHit?'#2fbf71':'url(#gr)');
+    s.l+=`<rect x="${x}" y="${yy}" width="${bwid}" height="${Math.max(0,h)}" rx="3" fill="${col}"><title>Week of ${w.label}: ${usd(w.closed)}${w.goalHit?' ✓ hit goal':''}</title></rect>`;
+    if(i%2===0) s.l+=`<text x="${x+bwid/2}" y="${H-9}" fill="#5d6884" font-size="8" text-anchor="middle">${w.label}</text>`;
+  });
+  s.l+=`<defs><linearGradient id="gr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b8cff"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs></svg>`;
+  const d=document.createElement('div');d.innerHTML=s.l;return d;
+}
+function agingChart(inv){
+  const buckets=[['0-30 days',inv.aging['0-30'],'#2fbf71'],['31-60 days',inv.aging['31-60'],'#3d9bff'],
+    ['61-90 days',inv.aging['61-90'],'#f5a623'],['90+ days',inv.aging['90+'],'#ef5066']];
+  const max=Math.max(...buckets.map(b=>b[1]),1);
+  const d=document.createElement('div');
+  buckets.forEach(b=>{const w=b[1]/max*100;
+    d.appendChild(el('div','',`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:14px 0 6px">
+        <span>${b[0]}</span><span style="font-weight:700">${b[1]} listing${b[1]===1?'':'s'}</span></div>
+      <div class="bar"><i style="width:${Math.max(2,w)}%;background:${b[2]}"></i></div>`));
+  });
+  return d;
+}
+
+// ============ tables ============
+function simpleTable(t,cols,rows,foot){
+  t.innerHTML='<thead><tr>'+cols.map(c=>`<th class="${c.r?'r':''}">${c.h}</th>`).join('')+'</tr></thead>';
+  const tb=el('tbody');
+  rows.forEach(r=>{const tr=el('tr');cols.forEach(c=>tr.appendChild(el('td',(c.r?'r ':'')+(c.cls||''),c.f(r))));tb.appendChild(tr);});
+  t.appendChild(tb);
+  if(foot){const tf=el('tfoot');const tr=el('tr');cols.forEach(c=>tr.appendChild(el('td',c.r?'r':'',c.ft?c.ft(foot):'')));tf.appendChild(tr);t.appendChild(tf);}
+}
+function closeBadge(p){if(p==null)return '—';const c=p>=0.4?'b-good':p>=0.2?'b-warn':'b-bad';return `<span class="badge ${c}">${pct(p)}</span>`;}
+
+// ============ render ============
+let agSort={key:'closedRev',dir:-1};
+function renderAll(){
+  const r=M.revenue, agg=mkAgg(), dp=M.dispo;
+
+  // ---------- OVERVIEW ----------
+  const ytdClosed=r.totals?r.totals.closed:r.months.reduce((s,m)=>s+m.closed,0);
+  const ytdOpen=r.totals?r.totals.projected:r.months.reduce((s,m)=>s+m.projected,0);
+  const annualGoal=M.meta.annualRevGoal;
+  const prog=Math.min(100,ytdClosed/annualGoal*100);
+  const signedC=r.agentsTotal?r.agentsTotal.signedContracts:0, closedC=r.agentsTotal?r.agentsTotal.closedContracts:0;
+  const k1=$('#ovKpis'); k1.innerHTML='';
+  k1.appendChild(kpi('YTD Closed Revenue',usdK(ytdClosed),`of ${usdK(annualGoal)} annual goal`,
+    `<div class="bar"><i style="width:${prog}%"></i></div><div class="kpi-sub" style="margin-top:6px">${prog.toFixed(1)}% to goal · ${closedC} deals closed</div>`));
+  k1.appendChild(kpi('Open Pipeline',usdK(ytdOpen),'projected (not yet closed) revenue'));
+  k1.appendChild(kpi('Contracts Signed',intc(signedC),`${closedC} closed · ${pct(closedC/(signedC||1))} close rate`));
+  k1.appendChild(kpi('Marketing Leads (YTD)',intc(agg.leads),`${intc(agg.contracts)} contracts · ${num1(agg.leadsPerContract)} leads/contract`));
+
+  $('#ovRevChart').innerHTML=''; $('#ovRevChart').appendChild(revenueChart(r.months,M.meta.goals.monthlyRevenue));
+  $('#ovFunnel').innerHTML=''; $('#ovFunnel').appendChild(funnel(agg));
+
+  const topAgents=r.agents.slice().sort((a,b)=>b.closedRev-a.closedRev).slice(0,6);
+  simpleTable($('#ovAgents'),[
+    {h:'Agent',f:a=>a.name,cls:'name'},
+    {h:'Closed Rev',r:1,f:a=>usdK(a.closedRev)},
+    {h:'Signed',r:1,f:a=>intc(a.signedContracts)},
+    {h:'Close',r:1,f:a=>closeBadge(a.closeRate)},
+  ],topAgents);
+
+  simpleTable($('#ovDispo'),[
+    {h:'Rep',f:a=>a.member,cls:'name'},
+    {h:'2026 Closed',r:1,f:a=>usdK(a.closed2026Rev)},
+    {h:'Closed',r:1,f:a=>intc(a.closed2026Contracts)},
+    {h:'Closing %',r:1,f:a=>closeBadge(a.closingPct)},
+  ],dp.reps.slice().sort((a,b)=>b.closed2026Rev-a.closed2026Rev));
+
+  // ---------- REVENUE ----------
+  const k2=$('#revKpis'); k2.innerHTML='';
+  k2.appendChild(kpi('Closed Revenue',usdK(ytdClosed),'YTD',deltaTag(ytdClosed,annualGoal*(monthsElapsed()/12))));
+  k2.appendChild(kpi('Open Pipeline',usdK(ytdOpen),'projected to close'));
+  k2.appendChild(kpi('Total Revenue',usdK(ytdClosed+ytdOpen),'closed + open'));
+  const bestM=r.months.slice().sort((a,b)=>b.closed-a.closed)[0]||{};
+  k2.appendChild(kpi('Best Month',bestM.month||'—',`${usdK(bestM.closed)} closed`));
+  $('#revChart').innerHTML=''; $('#revChart').appendChild(revenueChart(r.months,M.meta.goals.monthlyRevenue));
+  // weekly closing pace
+  const wk=M.weekly||[]; const hits=wk.filter(w=>w.goalHit).length;
+  $('#weekHit').innerHTML=wk.length?`<b class="${hits>=wk.length/2?'up':'down'}">Hit goal ${hits} of last ${wk.length} weeks.</b>`:'';
+  $('#weekChart').innerHTML=''; if(wk.length) $('#weekChart').appendChild(weeklyChart(wk,M.meta.goals.weeklyRevenue));
+  simpleTable($('#revQuarters'),[
+    {h:'Quarter',f:q=>q.q,cls:'name'},{h:'Projected',r:1,f:q=>usdK(q.projected)},
+    {h:'Closed',r:1,f:q=>usdK(q.closed)},{h:'Total',r:1,f:q=>usdK(q.total)},
+  ],r.quarters);
+  simpleTable($('#revMonths'),[
+    {h:'Month',f:m=>m.month,cls:'name'},{h:'Projected',r:1,f:m=>usdK(m.projected)},
+    {h:'Closed',r:1,f:m=>usdK(m.closed)},{h:'Total',r:1,f:m=>usdK(m.total)},
+  ],r.months,r.totals);
+
+  // ---------- MARKETING ----------
+  const k3=$('#mkKpis'); k3.innerHTML='';
+  k3.appendChild(kpi('Total Leads',intc(agg.leads),`vs ${intc(agg.goalLeads)} goal`,
+    `<div class="kpi-sub">${agg.leads>=agg.goalLeads?'<span class="delta up">on/above goal</span>':'<span class="delta down">'+intc(agg.goalLeads-agg.leads)+' below goal</span>'}</div>`));
+  k3.appendChild(kpi('Viability %',pct(agg.viability),`${intc(agg.viable)} viable · ${intc(agg.nv)} non-viable`));
+  k3.appendChild(kpi('Offers Made',intc(agg.offers),`${intc(agg.contracts)} contracts signed`));
+  k3.appendChild(kpi('Ad Spend',usdK(agg.spend),`${usd(agg.cpl)} cost per lead`));
+  $('#mkChart').innerHTML=''; $('#mkChart').appendChild(marketingChart(agg));
+  simpleTable($('#mkTable'),[
+    {h:'Channel',f:c=>c.name,cls:'name'},
+    {h:'Leads',r:1,f:c=>intc(my(c,'TOTAL LEADS'))},
+    {h:'Viability',r:1,f:c=>{const l=my(c,'TOTAL LEADS'),nv=my(c,'NON VIABLE LEADS');return l?pct((l-nv)/l):'—';}},
+    {h:'Offers',r:1,f:c=>intc(my(c,'OFFERS MADE'))},
+    {h:'Contracts',r:1,f:c=>intc(my(c,'CONTRACTS SIGNED'))},
+    {h:'Ad Spend',r:1,f:c=>usdK(my(c,'TOTAL AD SPEND'))},
+    {h:'CPL',r:1,f:c=>{const l=my(c,'TOTAL LEADS'),sp=my(c,'TOTAL AD SPEND');return l?usd(sp/l):'—';}},
+    {h:'Leads/Contract',r:1,f:c=>{const l=my(c,'TOTAL LEADS'),ct=my(c,'CONTRACTS SIGNED');return ct?num1(l/ct):'—';}},
+  ],M.marketing);
+
+  // ---------- AGENTS ----------
+  const k4=$('#agKpis'); k4.innerHTML='';
+  const at=r.agentsTotal||{};
+  k4.appendChild(kpi('Active Agents',r.agents.length,'on the board'));
+  k4.appendChild(kpi('Signed Revenue',usdK(at.signedRev),`${intc(at.signedContracts)} contracts signed`));
+  k4.appendChild(kpi('Closed Revenue',usdK(at.closedRev),`${intc(at.closedContracts)} contracts closed`));
+  k4.appendChild(kpi('Team Close Rate',pct(at.closeRate),'closed ÷ signed contracts'));
+  renderAgents();
+
+  // ---------- DISPO ----------
+  const k5=$('#dpKpis'); k5.innerHTML='';
+  const dt=dp.total||{}, inv=M.inventory||{aging:{}};
+  k5.appendChild(kpi('2026 Closed Revenue',usdK(dt.closed2026Rev),`${intc(dt.closed2026Contracts)} deals closed`));
+  k5.appendChild(kpi('Active Listings',intc(inv.count),`${usdK(inv.value)} total list value`));
+  k5.appendChild(kpi('Avg Days on Market',inv.avgDom==null?'—':Math.round(inv.avgDom),`sold deals avg ${M.soldAvgDom==null?'—':Math.round(M.soldAvgDom)} days`));
+  k5.appendChild(kpi('Aged 60+ Days',intc(inv.aged60),`${pct(inv.count?inv.aged60/inv.count:0)} of active inventory`));
+
+  $('#dpAging').innerHTML=''; $('#dpAging').appendChild(agingChart(inv));
+  simpleTable($('#dpOldest'),[
+    {h:'Property',f:p=>p.address},{h:'Rep',f:p=>p.rep},
+    {h:'Status',f:p=>`<span class="badge ${p.status==='Under Contract'?'b-warn':'b-ok'}">${p.status}</span>`},
+    {h:'List Price',r:1,f:p=>usdK(p.listPrice)},
+    {h:'Days',r:1,f:p=>`<span class="badge ${p.dom>90?'b-bad':p.dom>60?'b-warn':'b-mut'}">${p.dom}</span>`},
+  ],M.oldest||[]);
+
+  simpleTable($('#dpTable'),[
+    {h:'Rep',f:a=>a.member,cls:'name',ft:t=>'Total'},
+    {h:'Active',r:1,f:a=>intc(a.activeListings),ft:t=>intc(inv.count)},
+    {h:'Avg DOM',r:1,f:a=>a.activeDom==null?'—':Math.round(a.activeDom),ft:t=>inv.avgDom==null?'—':Math.round(inv.avgDom)},
+    {h:'2026 Closed Rev',r:1,f:a=>usdK(a.closed2026Rev),ft:t=>usdK(t.closed2026Rev)},
+    {h:'2026 Closed',r:1,f:a=>intc(a.closed2026Contracts),ft:t=>intc(t.closed2026Contracts)},
+    {h:'Assigned',r:1,f:a=>intc(a.assignedContracts),ft:t=>intc(t.assignedContracts)},
+    {h:'Cancelled',r:1,f:a=>intc(a.cancelled),ft:t=>intc(t.cancelled)},
+    {h:'Closing %',r:1,f:a=>closeBadge(a.closingPct),ft:t=>closeBadge(t.closingPct)},
+  ],dp.reps.slice().sort((a,b)=>b.closed2026Rev-a.closed2026Rev),dp.total);
+}
+
+function my(c,k){return (c.metrics[k]&&c.metrics[k].ytd)||0;}
+function monthsElapsed(){const closedMonths=M.revenue.months.filter(m=>m.closed>0||m.projected>0).length;return Math.max(1,closedMonths);}
+
+const AG_COLS=[
+  {k:'name',h:'Agent',f:a=>a.name,cls:'name'},
+  {k:'signedRev',h:'Signed Rev',r:1,f:a=>usdK(a.signedRev)},
+  {k:'closedRev',h:'Closed Rev',r:1,f:a=>usdK(a.closedRev)},
+  {k:'signedContracts',h:'Signed',r:1,f:a=>intc(a.signedContracts)},
+  {k:'closedContracts',h:'Closed',r:1,f:a=>intc(a.closedContracts)},
+  {k:'closeRate',h:'Close Rate',r:1,f:a=>closeBadge(a.closeRate)},
+];
+function renderAgents(){
+  const rows=M.revenue.agents.slice().sort((a,b)=>{
+    const x=a[agSort.key],y=b[agSort.key];
+    if(typeof x==='string') return agSort.dir*String(x).localeCompare(String(y));
+    return agSort.dir*((x||0)-(y||0));
+  });
+  const t=$('#agTable');
+  t.innerHTML='<thead><tr>'+AG_COLS.map(c=>`<th class="${c.r?'r':''}" data-k="${c.k}">${c.h}</th>`).join('')+'</tr></thead>';
+  const tb=el('tbody');
+  rows.forEach(a=>{const tr=el('tr');AG_COLS.forEach(c=>tr.appendChild(el('td',(c.r?'r ':'')+(c.cls||''),c.f(a))));tb.appendChild(tr);});
+  t.appendChild(tb);
+  const at=M.revenue.agentsTotal;
+  if(at){const tf=el('tfoot');const tr=el('tr');
+    tr.appendChild(el('td','','Total'));
+    tr.appendChild(el('td','r',usdK(at.signedRev)));
+    tr.appendChild(el('td','r',usdK(at.closedRev)));
+    tr.appendChild(el('td','r',intc(at.signedContracts)));
+    tr.appendChild(el('td','r',intc(at.closedContracts)));
+    tr.appendChild(el('td','r',closeBadge(at.closeRate)));
+    tf.appendChild(tr);t.appendChild(tf);}
+  t.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;agSort.dir=agSort.key===k?-agSort.dir:-1;agSort.key=k;renderAgents();});
+}
+
+// ============ live refresh ============
+function setStatus(state,msg){
+  const lamp=$('#lamp');
+  lamp.className='lamp'+(state==='loading'?' on':state==='error'?' err':'');
+  $('#status').textContent=msg;
+}
+function fmtTime(d){return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});}
+
+let refreshing=false;
+async function refresh(){
+  if(refreshing) return; refreshing=true;
+  $('#refreshBtn').classList.add('spinning'); $('#refreshBtn').disabled=true;
+  setStatus('loading','Refreshing…');
+  try{
+    M=await loadLive();
+    renderAll();
+    $('#overlay').style.display='none';
+    $('#banner').classList.remove('show');
+    setStatus('ok','Live · updated '+fmtTime(M.meta.fetchedAt));
+  }catch(e){
+    console.error(e);
+    setStatus('error','Update failed');
+    const b=$('#banner'); b.classList.add('show');
+    b.innerHTML='Could not load live data from the Google Sheet: '+(e.message||e)+
+      '. Check that the sheet is shared as “Anyone with the link can view”, then press Refresh.';
+    if(!M){ $('#overlay').querySelector('span:last-child').textContent='Could not load — see message above.'; }
+  }finally{
+    refreshing=false; $('#refreshBtn').classList.remove('spinning'); $('#refreshBtn').disabled=false;
+  }
+}
+$('#refreshBtn').onclick=refresh;
+
+// initial load + auto-refresh every 5 minutes
+refresh();
+setInterval(refresh, 5*60*1000);
+</script>
+</body>
+</html>
