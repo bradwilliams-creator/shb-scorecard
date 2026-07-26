@@ -1219,6 +1219,15 @@ function tenureLabel(name){
   if(weeks>=1) return weeks+' week'+(weeks===1?'':'s');
   return 'this week';
 }
+// Assigned shift for an agent (set in the roster editor) → display window text.
+function shiftFor(name,tier){
+  let sh={}; try{sh=JSON.parse(localStorage.getItem('shb_shifts_v1')||'{}')||{};}catch(_){}
+  const f=fwName(name); let val=null;
+  for(const k in sh){ if(fwName(k)===f){ val=sh[k]; break; } }
+  if(val==null) return null;
+  const t=tier==='secondary-pt'?'partTime':(tier==='primary'?'primary':'fullTime');
+  return shiftWindowText(String(val),t);
+}
 // Current-month follow-up metrics for an agent from the STL Follow-Ups tab.
 function stlFor(name){
   const s=M.stl; if(!s||!s.ok||!s.agents) return null;
@@ -1249,13 +1258,14 @@ function renderFramework(){
     const tierBadge=e.tier? `<span class="badge ${e.tier==='primary'?'b-ok':'b-mut'}">${e.tier==='secondary-pt'?'secondary · PT':e.tier}</span>`
       : '<span class="badge b-mut" title="Not in the FRAMEWORK roster — edit FRAMEWORK.primary/secondary in this file">unassigned</span>';
     const card=el('div','fwcard');
-    const ten=tenureLabel(a.name), fu=stlFor(a.name);
+    const ten=tenureLabel(a.name), fu=stlFor(a.name), sh=shiftFor(a.name,e.tier);
     card.innerHTML=`
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:13.5px;font-weight:700;flex:1">${a.name}</span>
         ${tierBadge}<span class="badge ${e.cls}">${e.status}</span></div>
       <div style="margin-top:9px">
         <div class="fwstat"><span>Tenure</span><b>${ten||'—'}</b></div>
+        <div class="fwstat"><span>Shift</span><b>${sh||'—'}</b></div>
         <div class="fwstat"><span>Contracts (MTD)</span><b>${e.cMTD==null?'—':intc(e.cMTD)} <span class="mini">/ ${T.agentMonthlyGoal} goal</span></b></div>
         <div class="fwstat"><span>Signed spread (MTD)${e.sEst?' <span class="mini">est.</span>':''}</span><b>${e.sMTD==null?'—':usdK(e.sMTD)}</b></div>
         <div class="fwstat"><span>Talk time (wk)</span><b>${e.talkMinWk==null?'—':hm(e.talkMinWk)} <span class="mini">/ ${T.talkFloorHrs}h floor</span></b></div>
@@ -1675,9 +1685,33 @@ function fmtTime(d){return d.toLocaleTimeString([], {hour:'2-digit',minute:'2-di
 
 /* ---- roster editor ---- */
 function tierOf(name){return fwTier(name)||'inactive';}
+// Shift assignments (this browser). The three shift START times are 9 AM, 11 AM,
+// 1 PM; a full-time agent works 8h from that start, part-time works 4h. Inactive
+// agents have no shift (the dropdown is disabled).
+const SHIFT_LS='shb_shifts_v1';
+const SHIFTS=[['9','9 AM'],['11','11 AM'],['13','1 PM']];
+function loadShifts(){ try{return JSON.parse(localStorage.getItem(SHIFT_LS)||'{}')||{};}catch(_){return {};} }
+function fmtHour(h){ const p=(h>=12&&h<24)?'PM':'AM'; let hr=h%12; if(hr===0)hr=12; return hr+' '+p; }
+function shiftHours(tier){ return tier==='partTime'?4:8; }   // full-time & primary = 8h
+function shiftWindowText(startStr,tier){
+  if(!startStr||tier==='inactive') return '';
+  const start=parseInt(startStr,10); const hrs=shiftHours(tier);
+  return fmtHour(start)+'–'+fmtHour(start+hrs)+' · '+hrs+'h';
+}
+// Keep a row's shift dropdown in sync with its selected tier.
+function syncShiftRow(row){
+  const on=row.querySelector('.seg span.on');
+  const tier=on?on.dataset.t:'inactive';
+  const sel=row.querySelector('.shiftSel'), win=row.querySelector('.shiftWin');
+  if(!sel) return;
+  if(tier==='inactive'){ sel.value=''; sel.disabled=true; }
+  else sel.disabled=false;
+  if(win) win.textContent=shiftWindowText(sel.value,tier);
+}
 function openRoster(){
   $('#rosterSrc').textContent='source: '+ROSTER_SRC;
   const list=$('#rosterList'); list.innerHTML='';
+  const shifts=loadShifts();
   // every scorecard agent + any roster name not (yet) on the scorecard
   const names=M.revenue.agentsAll.map(a=>a.name);
   [].concat(ROSTER.primary,ROSTER.fullTime,ROSTER.partTime).forEach(n=>{
@@ -1685,30 +1719,51 @@ function openRoster(){
   });
   const OPTS=[['primary','Primary'],['fullTime','Full-Time'],['partTime','Part-Time'],['inactive','Inactive']];
   const key={'primary':'primary','secondary':'fullTime','secondary-pt':'partTime','inactive':'inactive'};
+  const selCss='margin:0;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--txt);font-size:11.5px;font-weight:600;padding:5px 8px;cursor:pointer';
   names.forEach(n=>{
     const clean=n.replace(' (not on scorecard yet)','');
     const cur=key[tierOf(clean)];
+    const curShift=shifts[clean]!=null?String(shifts[clean]):'';
+    const dis=cur==='inactive';
     const row=el('div','',`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px">
       <span style="font-size:12.5px;font-weight:600;flex:1 1 120px">${n}</span>
-      <span class="seg" style="margin:0">${OPTS.map(([v,l])=>`<span data-n="${clean}" data-t="${v}" class="${cur===v?'on':''}">${l}</span>`).join('')}</span></div>`);
+      <span class="seg" style="margin:0">${OPTS.map(([v,l])=>`<span data-n="${clean}" data-t="${v}" class="${cur===v?'on':''}">${l}</span>`).join('')}</span>
+      <select class="shiftSel" data-n="${clean}" ${dis?'disabled':''} title="Assigned shift start" style="${selCss}${dis?';opacity:.45;cursor:not-allowed':''}">
+        <option value="">— shift —</option>
+        ${SHIFTS.map(([v,l])=>`<option value="${v}" ${curShift===v?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <span class="shiftWin mini" style="flex:0 0 auto;min-width:96px;color:var(--faint)"></span></div>`);
     list.appendChild(row);
   });
   list.querySelectorAll('.seg span').forEach(sp=>sp.onclick=()=>{
     sp.parentElement.querySelectorAll('span').forEach(x=>x.classList.remove('on'));
     sp.classList.add('on');
+    const row=sp.closest('div'); const sel=row.querySelector('.shiftSel');
+    if(sel) sel.style.opacity=(sp.dataset.t==='inactive')?'.45':'1';
+    syncShiftRow(row);
+  });
+  list.querySelectorAll('.shiftSel').forEach(sel=>{
+    sel.onchange=()=>syncShiftRow(sel.closest('div'));
+    syncShiftRow(sel.closest('div'));   // initial window text
   });
   $('#rosterModal').style.display='grid';
 }
 $('#rosterBtn')&&($('#rosterBtn').onclick=openRoster);
 document.addEventListener('click',e=>{if(e.target&&e.target.id==='rosterBtn')openRoster();});
 $('#rosterCancel').onclick=()=>$('#rosterModal').style.display='none';
-$('#rosterReset').onclick=()=>{localStorage.removeItem(ROSTER_LS);$('#rosterModal').style.display='none';renderAll();};
+$('#rosterReset').onclick=()=>{localStorage.removeItem(ROSTER_LS);localStorage.removeItem(SHIFT_LS);$('#rosterModal').style.display='none';renderAll();};
 $('#rosterSave').onclick=()=>{
   const out={primary:[],fullTime:[],partTime:[]};
   $('#rosterList').querySelectorAll('.seg span.on').forEach(sp=>{
     if(sp.dataset.t!=='inactive') out[sp.dataset.t].push(sp.dataset.n);
   });
+  // shifts — only for active agents with a shift selected
+  const shifts={};
+  $('#rosterList').querySelectorAll('.shiftSel').forEach(sel=>{
+    if(!sel.disabled && sel.value) shifts[sel.dataset.n]=sel.value;
+  });
   localStorage.setItem(ROSTER_LS,JSON.stringify(out));
+  localStorage.setItem(SHIFT_LS,JSON.stringify(shifts));
   $('#rosterModal').style.display='none';
   renderAll();
 };
