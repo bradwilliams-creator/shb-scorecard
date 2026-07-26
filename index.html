@@ -35,11 +35,12 @@
   header.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);
     backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
   .topin{max-width:1240px;margin:0 auto;padding:11px 18px;display:flex;align-items:center;gap:12px}
+  .brand{min-width:0}
   .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--brand),var(--brand2));
     display:grid;place-items:center;font-weight:800;font-size:13px;color:#fff;letter-spacing:.5px;flex:none}
   .ttl{font-size:15.5px;font-weight:700;line-height:1.15;white-space:nowrap}
   .sub{font-size:11.5px;color:var(--muted)}
-  .live{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .live{margin-left:auto;display:flex;align-items:center;gap:10px;flex:none}
   .lampwrap{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);white-space:nowrap}
   .lamp{width:8px;height:8px;border-radius:50%;background:var(--good)}
   .lamp.on{animation:pulse 1.6s infinite}
@@ -73,6 +74,7 @@
   @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
   .grid{display:grid;gap:12px}
+  .grid > *{min-width:0}
   .g4{grid-template-columns:repeat(4,1fr)}
   .g2{grid-template-columns:repeat(2,1fr)}
   .g2w{grid-template-columns:1.5fr 1fr}
@@ -128,8 +130,13 @@
   .fwgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
   @media(max-width:980px){.fwgrid{grid-template-columns:repeat(2,1fr)}}
   @media(max-width:640px){.fwgrid{grid-template-columns:1fr}}
-  .fwstat{display:flex;justify-content:space-between;font-size:11.5px;padding:3px 0;color:var(--muted)}
-  .fwstat b{color:var(--txt);font-weight:700}
+  .fwstat{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;align-items:baseline;font-size:11.5px;padding:3px 0;color:var(--muted);line-height:1.4}
+  .fwstat b{color:var(--txt);font-weight:700;text-align:right}
+
+  /* funnel rows — label + delta on the left, value on the right, wrap-safe */
+  .frow{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:baseline;font-size:12.5px;line-height:1.4}
+  .frow > span:last-child{text-align:right}
+  .topgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
 
   .banner{margin:14px 0;padding:12px 16px;border-radius:12px;background:rgba(239,80,102,.12);
     border:1px solid rgba(239,80,102,.4);color:var(--badT);font-size:12.5px;display:none}
@@ -141,11 +148,31 @@
 
   /* card-ified tables on phones */
   @media(max-width:640px){
-    .ttl{font-size:14px}.sub{display:none}
+    .ttl{font-size:14px;overflow:hidden;text-overflow:ellipsis}.sub{display:none}
     #srcLink{display:none}
+    .topin{gap:9px;padding:10px 12px}
+    #refreshBtn .btntxt{display:none}
+    #refreshBtn{padding:8px 10px;min-height:36px}
+    #status{font-size:11px}
     nav.tabs{display:none}
     nav.bottomnav{display:flex}
     .wrap{padding:0 12px 96px}
+
+    /* KPI grid: gauge cards take the full row so the dial + copy breathe */
+    .grid.g4{gap:10px}
+    .g4 > .card.gaugecard{grid-column:1 / -1}
+    .kpi{font-size:22px}
+
+    /* stacked, full-width blocks for the denser panels */
+    .topgrid{grid-template-columns:1fr}
+    .fwstat{font-size:12px;padding:4px 0}
+    #rosterBtn{margin-left:0;width:100%;justify-content:center;min-height:44px}
+    .phead .seg{margin-left:0}
+    .seg{flex-wrap:wrap}
+    .seg span{padding:8px 12px}
+    #rosterList .seg span{padding:7px 10px}
+    .panel{padding:14px 13px}
+
     table.cardify thead{display:none}
     table.cardify, table.cardify tbody, table.cardify tfoot{display:block}
     table.cardify tr{display:grid;grid-template-columns:1fr 1fr;gap:2px 12px;padding:10px 12px;
@@ -156,6 +183,16 @@
     table.cardify td.name{grid-column:1 / -1;font-size:13.5px;padding-bottom:4px}
     table.cardify td.name::before{display:none}
     table.cardify tfoot tr{background:var(--panel);border-style:dashed}
+    /* badge cells (recommended action, close rate) get their own full-width row */
+    table.cardify td:has(.badge){grid-column:1 / -1;align-items:center;margin-top:2px}
+    table.cardify td .badge{white-space:normal;border-radius:8px;padding:4px 9px;line-height:1.35;text-align:right}
+
+    /* wide scrolling tables keep the agent/month column pinned */
+    .tablewrap table:not(.cardify) th:first-child,
+    .tablewrap table:not(.cardify) td:first-child{position:sticky;left:0;background:var(--panel);z-index:1}
+    .panel svg{max-width:100%}
+    .panel svg text{font-size:14px}
+    #dpAging,#mkChart,#revChart,#ovRevChart{overflow-x:auto}
   }
 </style>
 </head>
@@ -163,7 +200,7 @@
 <header class="top">
   <div class="topin">
     <div class="logo">SHB</div>
-    <div>
+    <div class="brand">
       <div class="ttl">SHB Sales Scorecard 2026</div>
       <div class="sub">Live management dashboard</div>
     </div>
@@ -198,7 +235,7 @@
     </div>
     <div class="panel"><div class="phead"><h2>Top Performers</h2><span class="mini">acquisitions · closed revenue YTD</span>
       <span style="margin-left:auto"><a href="#" id="ovAllLink" style="font-size:12px;font-weight:600">View all →</a></span></div>
-      <div id="ovTop" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px"></div>
+      <div id="ovTop" class="topgrid"></div>
     </div>
     <div class="panel"><div class="phead"><h2>Disposition Snapshot</h2>
       <span style="margin-left:auto"><a href="#" id="ovDispoLink" style="font-size:12px;font-weight:600">Open tab →</a></span></div>
@@ -326,6 +363,10 @@ const LIVE = {
   ADMIN_TAB: "DASHBOARD ADMIN",
   ROSTER_TAB: "ACTIVE ROSTER",
   METRIC_TAB: "METRIC DASHBOARD",
+  // STL sheet — up-to-date lead inflow + per-agent follow-up metrics.
+  // Must be link-shared "anyone with the link can view" like the main sheet.
+  STL_SID: "1FJClIy1z9UpjSmC53OZ9-dnMUHMvpdxcNsGFhinknJA",
+  STL_GID: { weekly: "213958139", followups: "1780247312" },
   goals: {
     monthlyRevenue: 1000000,
     weeklyRevenue: 250000,
@@ -363,7 +404,9 @@ const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct'
 let _gvSeq = 0;
 function fetchTab(gid) { return gvizFetch('gid=' + gid); }
 function fetchTabByName(name) { return gvizFetch('sheet=' + encodeURIComponent(name)); }
-function gvizFetch(target) {
+function fetchStl(gid) { return gvizFetch('gid=' + gid, LIVE.STL_SID); }
+function gvizFetch(target, sid) {
+  sid = sid || LIVE.SID;
   return new Promise((resolve, reject) => {
     const cb = '__gv' + (_gvSeq++);
     const s = document.createElement('script');
@@ -379,10 +422,55 @@ function gvizFetch(target) {
       } catch (e) { reject(e); } finally { cleanup(); }
     };
     s.onerror = () => { clearTimeout(timer); cleanup(); reject(new Error('Network error loading tab ' + target)); };
-    s.src = `https://docs.google.com/spreadsheets/d/${LIVE.SID}/gviz/tq` +
+    s.src = `https://docs.google.com/spreadsheets/d/${sid}/gviz/tq` +
             `?tqx=out:json;responseHandler:${cb}&${target}&headers=0&_=${Date.now()}`;
     document.head.appendChild(s);
   });
+}
+
+// ---- STL sheet: monthly lead inflow + per-agent follow-up metrics ----------
+// gviz drops the month-name header row (merged), so months map by fixed column
+// index (verified): Jan..Dec. Rows are matched by their label in column A.
+const STL_MONTH_COL = [6, 11, 17, 22, 27, 33, 38, 44, 49, 54, 60, 65];
+async function loadStl() {
+  try {
+    const [wm, fu] = await Promise.all([fetchStl(LIVE.STL_GID.weekly), fetchStl(LIVE.STL_GID.followups)]);
+    const monthVals = (grid, matcher) => {
+      for (let i = 0; i < grid.length; i++) if (matcher(rowText(grid, i, 0))) {
+        return STL_MONTH_COL.map(c => pnum(cell(grid, i, c)) || 0);
+      }
+      return null;
+    };
+    const leads = monthVals(wm, t => t === 'Total');   // Weekly Metrics → total leads/month
+    // Follow-Ups company totals (the block before the first "SALES:" agent)
+    let firstAgent = fu.findIndex(r => String((r && r[0]) || '').trim().toUpperCase().startsWith('SALES:'));
+    if (firstAgent < 0) firstAgent = fu.length;
+    const coRow = label => {
+      for (let i = 0; i < firstAgent; i++) if (rowText(fu, i, 0) === label)
+        return STL_MONTH_COL.map(c => pnum(cell(fu, i, c)) || 0);
+      return null;
+    };
+    const company = { calls: coRow('Total Calls'), texts: coRow('Total Texts'),
+      qual: coRow('Total Qualified Interactions'), contracts: coRow('Contracts'), rev: coRow('Est/Revenue') };
+    // Per-agent follow-up metrics
+    const agents = {};
+    let cur = null;
+    for (let i = 0; i < fu.length; i++) {
+      const c0 = rowText(fu, i, 0);
+      if (/^SALES:/i.test(c0)) { cur = c0.replace(/^SALES:\s*/i, '').trim(); agents[cur] = {}; continue; }
+      if (!cur) continue;
+      const put = (key) => { agents[cur][key] = STL_MONTH_COL.map(c => pnum(cell(fu, i, c)) || 0); };
+      if (c0 === 'Total Calls') put('calls');
+      else if (c0 === 'Total Texts') put('texts');
+      else if (/^Qualified Interactions/i.test(c0)) put('qual');
+      else if (c0 === '# Contracts') put('contracts');
+      else if (c0 === 'Est/Revenue') put('rev');
+    }
+    // current month = latest with lead data (falls back if this month is empty)
+    let curMonth = new Date().getMonth();
+    if (leads) { while (curMonth > 0 && !(leads[curMonth] > 0)) curMonth--; }
+    return { ok: !!leads, leads, company, agents, curMonth, prevMonth: curMonth > 0 ? curMonth - 1 : null };
+  } catch (e) { return { ok: false, error: String(e.message || e) }; }
 }
 
 function parseAdmin(grid) {
@@ -589,6 +677,28 @@ async function loadDials() {
     if (!r.ok) throw new Error("proxy HTTP " + r.status);
     const d = await r.json();
     if (d.error) throw new Error(d.error);
+    // The Dialpad export returns one row PER AGENT PER DAY. Collapse to one row
+    // per agent for the week so the count (and the per-agent average) reflects
+    // people, not person-days. Totals are unchanged (same rows, regrouped).
+    if (Array.isArray(d.agents)) {
+      const byName = {};
+      for (const a of d.agents) {
+        const k = (a.name || '').trim().toLowerCase();
+        const g = byName[k] || (byName[k] = { name: a.name, dials: 0, outboundConnected: 0, talkMinutes: 0, calls: 0 });
+        g.dials += a.dials || 0; g.outboundConnected += a.outboundConnected || 0;
+        g.talkMinutes += a.talkMinutes || 0; g.calls += a.calls || 0;
+      }
+      const agents = Object.values(byName).map(a => ({
+        ...a, talkMinutes: Math.round(a.talkMinutes * 10) / 10,
+        avgTalkPerCallSec: a.calls ? Math.round(a.talkMinutes * 60 / a.calls) : 0,
+      })).sort((x, y) => y.dials - x.dials);
+      const totals = agents.reduce((t, a) => { t.dials += a.dials; t.talkMinutes += a.talkMinutes;
+        t.calls += a.calls; t.outboundConnected += a.outboundConnected; return t; },
+        { dials: 0, talkMinutes: 0, calls: 0, outboundConnected: 0 });
+      totals.talkMinutes = Math.round(totals.talkMinutes * 10) / 10;
+      totals.avgTalkPerCallSec = totals.calls ? Math.round(totals.talkMinutes * 60 / totals.calls) : 0;
+      d.agents = agents; d.totals = totals;
+    }
     return { configured: true, ...d };
   } catch (e) {
     return { configured: true, error: String(e.message || e) };
@@ -615,65 +725,54 @@ async function loadCompanyContracts() {
    signed spread for framework evaluation. If the layout doesn't match, it
    returns { ok:false } and the framework panel degrades gracefully. */
 function parsePyramidPerAgent(grid, rosterNames, today) {
-  const res = { ok: false, agents: {}, detected: [] };
+  const res = { ok: false, agents: {}, detected: [], hasHeader: true, startMonday: {},
+    monthly: { signed: null, signedRev: null } };   // company totals by month (Jan..Dec)
   if (!grid || !grid.length) return res;
-  const roster = new Set(rosterNames.map(n => n.trim().toLowerCase()));
-  const firstName = s => String(s).trim().toLowerCase().split(/\s+/)[0];
-  const rosterFirst = new Set(rosterNames.map(firstName));
-  // 1. find a header row of dates or month labels
-  let headerCols = null; // [{col, month(0-11), date?}]
-  for (let i = 0; i < Math.min(grid.length, 12) && !headerCols; i++) {
-    const cols = [];
-    for (let j = 0; j < (grid[i] || []).length; j++) {
-      const v = cell(grid, i, j);
-      const d = pdate(v);
-      if (d && d.getFullYear() === today.getFullYear()) cols.push({ col: j, month: d.getMonth(), date: d });
-      else if (typeof v === 'string' && MONTH_NAMES.includes(String(v).trim().slice(0, 3)))
-        cols.push({ col: j, month: MONTH_NAMES.indexOf(String(v).trim().slice(0, 3)) });
-    }
-    if (cols.length >= 6) headerCols = cols;
-  }
-  const cut4w = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 28);
-  // 2. find metric rows and attribute them to the nearest agent name above
-  const METRIC = /^(CONTRACTS SIGNED|SIGNED REVENUE|SIGNED SPREAD|TOTAL SPREAD|CLOSED CONTRACTS|CLOSED REVENUE|LEADS RECEIVED|TOTAL LEADS|LEADS)$/i;
-  let curAgent = null;
-  let lastHeaderRow = -1;
+  // The month TOTAL columns sit at FIXED positions in the SALES PYRAMID layout
+  // (verified against the live sheet). We map by column index rather than header
+  // text because the gviz feed the browser uses drops the month-name header row.
+  // Column C(2) = agent name, D(3) = metric label. If the sheet's columns are
+  // ever inserted/removed, update MONTH_TOTAL_COL / TOTALS_COL below.
+  const MONTH_TOTAL_COL = [11, 16, 22, 27, 32, 38, 43, 49, 54, 59, 65, 70]; // Jan..Dec
+  const TOTALS_COL = 72;                                                    // YTD
+  const mtdCol = MONTH_TOTAL_COL[today.getMonth()];
+  // Weekly columns = everything from 7..70 except the month-total columns, in
+  // order; each maps to a sequential Monday from 2026-01-05 (the first week).
+  const weekCols = []; for (let c = 7; c <= 70; c++) if (!MONTH_TOTAL_COL.includes(c)) weekCols.push(c);
+  const colMonday = {}; const wk0 = new Date(2026, 0, 5);
+  weekCols.forEach((c, i) => { const d = new Date(wk0); d.setDate(d.getDate() + i * 7); colMonday[c] = d; });
+  const startCol = {};   // earliest week column with data, per agent
+  const WANT = /^(CONTRACTS SIGNED|SIGNED REVENUE|CLOSED CONTRACTS|CLOSED REVENUE|CONTRACTS CANCELED|CANCELED REVENUE)$/;
+  const SKIP = /JACOB|MANAGER|TRACKABLE|COMPANY|GOAL/;   // section / company markers, not agents
+  let cur = null;
   for (let i = 0; i < grid.length; i++) {
-    const row = grid[i] || [];
-    for (let j = 0; j < Math.min(row.length, 8); j++) {
-      const t = rowText(grid, i, j);
-      if (!t) continue;
-      const low = t.toLowerCase();
-      if (roster.has(low) || rosterFirst.has(firstName(t)) && t.length < 30 && !METRIC.test(t)) {
-        if (roster.has(low) || rosterFirst.has(low.split(/\s+/)[0]) && !/[0-9$%]/.test(t)) {
-          curAgent = t; if (!res.agents[curAgent]) res.agents[curAgent] = {};
-        }
-      }
-      if (curAgent && METRIC.test(t)) {
-        const key = t.toUpperCase().replace(/\s+/g, ' ');
-        const a = res.agents[curAgent];
-        if (!a[key]) {
-          a[key] = { row: i, labelCol: j };
-          if (headerCols) {
-            let mtd = 0, ytd = 0, wk4 = 0, any = false, hasDates = false;
-            for (const hc of headerCols) {
-              const v = pnum(cell(grid, i, hc.col));
-              if (v == null) continue;
-              any = true; ytd += v;
-              if (hc.month === today.getMonth()) mtd += v;
-              if (hc.date) { hasDates = true; if (hc.date >= cut4w && hc.date <= today) wk4 += v; }
-            }
-            if (any) { a[key].mtd = mtd; a[key].ytd = ytd; a[key].wk4 = hasDates ? wk4 : mtd; a[key].wk4IsMtd = !hasDates; }
-          }
-        }
-      }
+    const nm = rowText(grid, i, 2);
+    if (nm) {
+      const NU = nm.toUpperCase();
+      // The company monthly totals live at the bottom with the label in column C.
+      if (NU === 'CONTRACTS SIGNED') { res.monthly.signed = MONTH_TOTAL_COL.map(c => pnum(cell(grid, i, c)) || 0); cur = null; }
+      else if (NU === 'SIGNED REVENUE') { res.monthly.signedRev = MONTH_TOTAL_COL.map(c => pnum(cell(grid, i, c)) || 0); cur = null; }
+      else cur = (!SKIP.test(NU) && nm.length < 40 && !/[0-9$%]/.test(nm)) ? nm : null;
     }
+    if (!cur) continue;
+    // tenure: first week column this agent has ANY non-zero data in
+    for (const c of weekCols) {
+      const v = pnum(cell(grid, i, c));
+      if (v) { if (startCol[cur] == null || c < startCol[cur]) startCol[cur] = c; break; }
+    }
+    const lbl = rowText(grid, i, 3).toUpperCase().replace(/\s+/g, ' ').trim();
+    if (!WANT.test(lbl)) continue;
+    const a = res.agents[cur] || (res.agents[cur] = {});
+    if (a[lbl]) continue;
+    const mtd = mtdCol != null ? (pnum(cell(grid, i, mtdCol)) || 0) : null;
+    const ytd = pnum(cell(grid, i, TOTALS_COL));
+    a[lbl] = { row: i, mtd, ytd: ytd == null ? null : ytd, wk4: mtd, wk4IsMtd: true };
   }
+  for (const nm in startCol) res.startMonday[nm] = colMonday[startCol[nm]] || null;
   const withData = Object.keys(res.agents).filter(n =>
     res.agents[n]['CONTRACTS SIGNED'] && res.agents[n]['CONTRACTS SIGNED'].mtd != null);
   res.ok = withData.length >= 2;
   res.detected = withData;
-  res.hasHeader = !!headerCols;
   return res;
 }
 
@@ -730,6 +829,7 @@ async function loadLive() {
   ]);
   const dials = await loadDials();
   const companyContracts = await loadCompanyContracts();
+  const stl = await loadStl();   // STL sheet: lead inflow + per-agent follow-ups
   const revenue = parseRevenue(revG);
   const marketing = parseMarketing(mkG);
   const dispo = parseDispo(dpG);
@@ -795,7 +895,7 @@ async function loadLive() {
       hidden: { agents: hiddenAgents, reps: hiddenReps },
     },
     revenue, marketing, dispo, inventory, weekly, oldest, soldAvgDom, closings, dials,
-    companyContracts, pyramid, rosterSheet, pyrTotals, metricDash,
+    companyContracts, pyramid, rosterSheet, pyrTotals, metricDash, stl,
   };
 }
 
@@ -954,22 +1054,32 @@ function funnel(agg){
   });
   return d;
 }
-function funnelVs(cur,prev,prevLabel){
-  const steps=[['Total leads','leads','#5b8cff'],['Viable leads','viable','#3d9bff'],
+function funnelVs(cur,prev,prevLabel,steps,extras){
+  steps=steps||[['Total leads','leads','#5b8cff'],['Viable leads','viable','#3d9bff'],
     ['Offers made','offers','#e8b341'],['Contracts signed','contracts','#2fbf71']];
   const max=Math.max(...steps.map(s=>Math.max(cur[s[1]]||0,prev?(prev[s[1]]||0):0)),1);
   const d=document.createElement('div');
+  const deltaTagFn=(cv,pv,goodHigh)=>{
+    if(pv==null) return '';
+    if(pv>0){const ch=(cv-pv)/pv;const good=goodHigh?ch>=0:ch<=0;return `<span class="delta ${good?'up':'down'}">${ch>=0?'+':''}${(ch*100).toFixed(0)}%</span>`;}
+    return cv>0?'<span class="delta up">new</span>':'';
+  };
   steps.forEach(st=>{
     const cv=cur[st[1]]||0, pv=prev?(prev[st[1]]||0):null;
-    let delta='';
-    if(pv!=null&&pv>0){const ch=(cv-pv)/pv;delta=`<span class="delta ${ch>=0?'up':'down'}">${ch>=0?'+':''}${(ch*100).toFixed(0)}%</span>`;}
-    else if(pv===0&&cv>0) delta='<span class="delta up">new</span>';
+    const fmt=st[3]||intc;
     d.appendChild(el('div','',`
-      <div style="display:flex;justify-content:space-between;align-items:center;margin:12px 0 5px;font-size:12.5px">
-        <span>${st[0]} ${delta}</span>
-        <span style="font-weight:700">${intc(cv)} <span class="mini">vs ${pv==null?'—':intc(pv)}</span></span></div>
+      <div class="frow" style="margin:12px 0 5px">
+        <span>${st[0]} ${deltaTagFn(cv,pv,true)}</span>
+        <span style="font-weight:700">${fmt(cv)} <span class="mini">vs ${pv==null?'—':fmt(pv)}</span></span></div>
       <div class="bar" style="margin-top:0"><i style="width:${Math.max(2,cv/max*100)}%;background:${st[2]}"></i></div>
       <div class="bar" style="margin-top:3px;height:4px;opacity:.55"><i style="width:${Math.max(2,(pv||0)/max*100)}%;background:var(--faint)"></i></div>`));
+  });
+  (extras||[]).forEach(ex=>{
+    const cv=cur[ex.key]||0, pv=prev?(prev[ex.key]||0):null, fmt=ex.fmt||intc;
+    d.appendChild(el('div','',`
+      <div class="frow" style="margin:12px 0 4px;padding-top:9px;border-top:1px solid var(--line)">
+        <span>${ex.label} ${deltaTagFn(cv,pv,true)}</span>
+        <span style="font-weight:700">${fmt(cv)} <span class="mini">vs ${pv==null?'—':fmt(pv)}</span></span></div>`));
   });
   if(prev) d.appendChild(el('div','legend',`<span><i class="sw" style="background:#5b8cff"></i>this month</span><span><i class="sw" style="background:var(--faint)"></i>${prevLabel}</span>`));
   return d;
@@ -1095,6 +1205,29 @@ function evalFramework(agent,talkMinWk){
   if(status==='Secure'&&talkOk===false) action='Coach talk time — below 8h floor';
   return {tier,cMTD,c4W,sMTD,s4W,sEst,status,cls,flags,talkMinWk,action};
 }
+// Tenure from the SALES PYRAMID: weeks since the agent's first week of data.
+// <=4 weeks → weeks; >4 weeks → months; >=6 months (or since Jan) → "6+ months".
+function tenureLabel(name){
+  const py=M.pyramid; if(!py||!py.startMonday) return null;
+  const f=fwName(name); let start=null;
+  for(const k in py.startMonday){ if(fwName(k)===f){ start=py.startMonday[k]; break; } }
+  if(!start) return null;
+  const t=M.meta.fetchedAt; const curMon=new Date(t); curMon.setDate(curMon.getDate()-((curMon.getDay()+6)%7));
+  const weeks=Math.max(0,Math.round((curMon-start)/(7*86400000)));
+  if(weeks>=26) return '6+ months';
+  if(weeks>4){ const m=Math.round(weeks/4.345); return m+' month'+(m===1?'':'s'); }
+  if(weeks>=1) return weeks+' week'+(weeks===1?'':'s');
+  return 'this week';
+}
+// Current-month follow-up metrics for an agent from the STL Follow-Ups tab.
+function stlFor(name){
+  const s=M.stl; if(!s||!s.ok||!s.agents) return null;
+  const f=fwName(name);
+  for(const k in s.agents){ if(fwName(k)===f){ const a=s.agents[k], m=s.curMonth;
+    return { calls:Math.round((a.calls||[])[m]||0), texts:Math.round((a.texts||[])[m]||0),
+      qual:Math.round((a.qual||[])[m]||0) }; } }
+  return null;
+}
 function renderFramework(){
   const grid=$('#fwGrid'), note=$('#fwNote'); grid.innerHTML=''; note.innerHTML='';
   const today=M.meta.fetchedAt;
@@ -1116,14 +1249,17 @@ function renderFramework(){
     const tierBadge=e.tier? `<span class="badge ${e.tier==='primary'?'b-ok':'b-mut'}">${e.tier==='secondary-pt'?'secondary · PT':e.tier}</span>`
       : '<span class="badge b-mut" title="Not in the FRAMEWORK roster — edit FRAMEWORK.primary/secondary in this file">unassigned</span>';
     const card=el('div','fwcard');
+    const ten=tenureLabel(a.name), fu=stlFor(a.name);
     card.innerHTML=`
-      <div style="display:flex;align-items:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span style="font-size:13.5px;font-weight:700;flex:1">${a.name}</span>
         ${tierBadge}<span class="badge ${e.cls}">${e.status}</span></div>
       <div style="margin-top:9px">
+        <div class="fwstat"><span>Tenure</span><b>${ten||'—'}</b></div>
         <div class="fwstat"><span>Contracts (MTD)</span><b>${e.cMTD==null?'—':intc(e.cMTD)} <span class="mini">/ ${T.agentMonthlyGoal} goal</span></b></div>
         <div class="fwstat"><span>Signed spread (MTD)${e.sEst?' <span class="mini">est.</span>':''}</span><b>${e.sMTD==null?'—':usdK(e.sMTD)}</b></div>
         <div class="fwstat"><span>Talk time (wk)</span><b>${e.talkMinWk==null?'—':hm(e.talkMinWk)} <span class="mini">/ ${T.talkFloorHrs}h floor</span></b></div>
+        <div class="fwstat"><span>Follow-up (MTD)</span><b>${fu?`${intc(fu.calls)} <span class="mini">calls</span> · ${intc(fu.texts)} <span class="mini">texts</span> · ${intc(fu.qual)} <span class="mini">qual</span>`:'—'}</b></div>
         <div class="fwstat"><span>YTD signed · closed</span><b>${intc(a.signedContracts)} · ${usdK(a.closedRev)}</b></div>
       </div>
       ${e.flags.length?`<div style="margin-top:8px;font-size:11px;color:var(--warnT)">${e.flags.map(f=>'▸ '+f).join('<br>')}</div>`:''}`;
@@ -1259,17 +1395,28 @@ function renderAll(){
   const mtdNote=isCur? `${MONTH_NAMES[mIdx]} MTD` : `latest logged: ${MONTH_NAMES[mIdx]}`;
   const k1=$('#ovKpis'); k1.innerHTML='';
   const cGoal=r.agents.length*FRAMEWORK.thresholds.agentMonthlyGoal;
-  k1.appendChild(gauge('Contracts Signed · MTD',mAgg.contracts/cGoal,intc(mAgg.contracts),
-    `${intc(mAgg.contracts)} <small>of ${cGoal} goal</small>`,
-    `${pct(mAgg.contracts/cGoal)} · ${r.agents.length} agents × ${FRAMEWORK.thresholds.agentMonthlyGoal} · ${mtdNote}`, 'var(--good)'));
+  // Contracts Signed · MTD uses the SAME source as the lead funnel's "Total
+  // contracts (signed)": the SALES PYRAMID company monthly totals (not the
+  // marketing-channel aggregate). Match the funnel's month too, and fall back to
+  // the marketing aggregate only if the pyramid totals aren't available.
+  const pmOv=(M.pyramid&&M.pyramid.monthly)||{};
+  const ovMonth=(M.stl&&M.stl.ok&&M.stl.leads&&M.stl.curMonth!=null)?M.stl.curMonth:mIdx;
+  const pyContractsMTD=pmOv.signed?(pmOv.signed[ovMonth]||0):null;
+  const contractsMTD=pyContractsMTD!=null?pyContractsMTD:mAgg.contracts;
+  const contractsSrc=pyContractsMTD!=null?'Sales Pyramid':'marketing';
+  const ovMtdNote=(ovMonth===nowIdx)?`${MONTH_NAMES[ovMonth]} MTD`:`latest logged: ${MONTH_NAMES[ovMonth]}`;
+  k1.appendChild(gauge('Contracts Signed · MTD',contractsMTD/cGoal,intc(contractsMTD),
+    `${intc(contractsMTD)} <small>of ${cGoal} goal</small>`,
+    `${pct(contractsMTD/cGoal)} · ${contractsSrc} · ${r.agents.length} agents × ${FRAMEWORK.thresholds.agentMonthlyGoal} · ${ovMtdNote}`, 'var(--good)'));
   // Talk time + dials widgets — from the Dialpad proxy (key stays on the worker)
   const d=M.dials||{configured:false};
   if(d.configured&&!d.error&&d.totals){
     const nAg=(d.agents||[]).length||1;
-    const floorMin=nAg*M.meta.goals.weeklyTalkHoursPerAgent*60;
-    k1.appendChild(gauge('Talk Time · This Week',(d.totals.talkMinutes||0)/floorMin,hm(d.totals.talkMinutes),
-      hm(d.totals.talkMinutes),
-      `team floor ${Math.round(floorMin/60)}h (${nAg}×${M.meta.goals.weeklyTalkHoursPerAgent}h) · avg ${mmss(d.totals.avgTalkPerCallSec)}/call`,'var(--brand)'));
+    const floorPerAgentMin=M.meta.goals.weeklyTalkHoursPerAgent*60;   // 8h/agent/week
+    const avgAgentMin=(d.totals.talkMinutes||0)/nAg;                  // avg talk time per agent
+    k1.appendChild(gauge('Avg Talk Time · This Week',avgAgentMin/floorPerAgentMin,hm(avgAgentMin),
+      hm(avgAgentMin),
+      `per agent · ${M.meta.goals.weeklyTalkHoursPerAgent}h/wk floor · ${hm(d.totals.talkMinutes)} team total across ${nAg}`,'var(--brand)'));
     k1.appendChild(kpi('Outbound Dials · This Week',intc(d.totals.dials),`${nAg} agents dialing · includes cancelled attempts`));
   } else {
     const msg=d.error?'Dialpad proxy error — see Acquisitions tab':'connect the Dialpad proxy to go live';
@@ -1282,16 +1429,37 @@ function renderAll(){
     `<div class="bar"><i style="width:${prog}%"></i></div><div class="kpi-sub" style="margin-top:6px">${prog.toFixed(1)}% to goal</div>`));
 
   $('#ovRevChart').innerHTML=''; $('#ovRevChart').appendChild(periodChart(ovPeriod));
-  const pIdx=mIdx>0?mIdx-1:null, pAgg=pIdx==null?null:mkAggMonths([pIdx]);
-  $('#ovFunnelTitle').textContent=`Funnel — ${MONTH_NAMES[mIdx]}${isCur?' MTD':''}${pIdx!=null?' vs '+MONTH_NAMES[pIdx]:''}`;
-  $('#ovFunnelDesc').textContent=isCur
-    ? `All channels — ${MONTH_NAMES[mIdx]} month-to-date against ${pIdx!=null?MONTH_NAMES[pIdx]+' (full month)':'—'}.`
-    : `No ${MONTH_NAMES[nowIdx]} marketing data yet — showing ${MONTH_NAMES[mIdx]} vs ${pIdx!=null?MONTH_NAMES[pIdx]:'—'}.`;
-  $('#ovFunnel').innerHTML=''; $('#ovFunnel').appendChild(funnelVs(mAgg,pAgg,pIdx!=null?MONTH_NAMES[pIdx]:''));
+  const stl=M.stl;
+  if(stl&&stl.ok&&stl.leads){
+    // Live lead inflow from the STL sheet → true current month vs previous month
+    const c=stl.curMonth, p=stl.prevMonth, co=stl.company||{};
+    const at=k=>(co[k]?co[k][c]:0)||0, atp=k=>(p==null?0:(co[k]?co[k][p]:0)||0);
+    // total contracts + signed revenue come from the SALES PYRAMID company totals
+    const pm=(M.pyramid&&M.pyramid.monthly)||{};
+    const pyC=(m)=>pm.signed?(pm.signed[m]||0):null, pyR=(m)=>pm.signedRev?(pm.signedRev[m]||0):null;
+    const cur={leads:stl.leads[c]||0, qual:Math.round(at('qual')),
+      totalContracts:pyC(c), followContracts:Math.round(at('contracts')), signedRev:pyR(c)};
+    const prev=p==null?null:{leads:stl.leads[p]||0, qual:Math.round(atp('qual')),
+      totalContracts:pyC(p), followContracts:Math.round(atp('contracts')), signedRev:pyR(p)};
+    const steps=[['Total leads','leads','#5b8cff'],['Qualified interactions','qual','#e8b341']];
+    if(pm.signed) steps.push(['Total contracts (signed)','totalContracts','#2fbf71']);
+    steps.push(['Follow-up contracts','followContracts','#7c5cff']);
+    const extras=pm.signedRev?[{label:'Signed revenue',key:'signedRev',fmt:usdK}]:[];
+    const isCurM=c===nowIdx;
+    $('#ovFunnelTitle').textContent=`Lead Funnel — ${MONTH_NAMES[c]}${isCurM?' MTD':''}${p!=null?' vs '+MONTH_NAMES[p]:''}`;
+    $('#ovFunnelDesc').textContent=`Leads & qualified from STL · total contracts & signed revenue from Sales Pyramid · follow-up contracts from STL. ${MONTH_NAMES[c]}${isCurM?' MTD':''} vs ${p!=null?MONTH_NAMES[p]+' (full)':'—'}.`;
+    $('#ovFunnel').innerHTML=''; $('#ovFunnel').appendChild(funnelVs(cur,prev,p!=null?MONTH_NAMES[p]:'',steps,extras));
+  } else {
+    const pIdx=mIdx>0?mIdx-1:null, pAgg=pIdx==null?null:mkAggMonths([pIdx]);
+    $('#ovFunnelTitle').textContent=`Funnel — ${MONTH_NAMES[mIdx]}${isCur?' MTD':''}${pIdx!=null?' vs '+MONTH_NAMES[pIdx]:''}`;
+    $('#ovFunnelDesc').textContent=isCur
+      ? `All channels — ${MONTH_NAMES[mIdx]} month-to-date against ${pIdx!=null?MONTH_NAMES[pIdx]+' (full month)':'—'}.`
+      : `No ${MONTH_NAMES[nowIdx]} marketing data yet — showing ${MONTH_NAMES[mIdx]} vs ${pIdx!=null?MONTH_NAMES[pIdx]:'—'}.`;
+    $('#ovFunnel').innerHTML=''; $('#ovFunnel').appendChild(funnelVs(mAgg,pAgg,pIdx!=null?MONTH_NAMES[pIdx]:''));
+  }
 
   const top=r.agents.slice().sort((a,b)=>b.closedRev-a.closedRev).slice(0,3);
   const tw=$('#ovTop'); tw.innerHTML='';
-  tw.style.gridTemplateColumns=window.innerWidth<=640?'1fr':'repeat(3,1fr)';
   top.forEach((a,i)=>{
     tw.appendChild(el('div','toprow',`
       <span class="rank ${i===0?'r1':''}">${i+1}</span>
@@ -1520,8 +1688,8 @@ function openRoster(){
   names.forEach(n=>{
     const clean=n.replace(' (not on scorecard yet)','');
     const cur=key[tierOf(clean)];
-    const row=el('div','',`<div style="display:flex;align-items:center;gap:10px;padding:7px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px">
-      <span style="font-size:12.5px;font-weight:600;flex:1">${n}</span>
+    const row=el('div','',`<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:10px">
+      <span style="font-size:12.5px;font-weight:600;flex:1 1 120px">${n}</span>
       <span class="seg" style="margin:0">${OPTS.map(([v,l])=>`<span data-n="${clean}" data-t="${v}" class="${cur===v?'on':''}">${l}</span>`).join('')}</span></div>`);
     list.appendChild(row);
   });
