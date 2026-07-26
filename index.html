@@ -121,6 +121,7 @@
 
   <nav class="tabs" id="tabs">
     <div class="tab on" data-v="overview">Overview</div>
+    <div class="tab" data-v="week">Current Week</div>
     <div class="tab" data-v="ytd">YTD</div>
     <div class="tab" data-v="quarterly">Quarterly</div>
     <div class="tab" data-v="revenue">Revenue</div>
@@ -144,6 +145,18 @@
         <div class="tablewrap"><table id="ovAgents"></table></div></div>
       <div class="panel"><h2>Disposition Team</h2><div class="desc">2026 closed revenue by rep.</div>
         <div class="tablewrap"><table id="ovDispo"></table></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-week">
+    <div class="grid g4" id="wkKpis"></div>
+    <div class="panel">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <h2 style="margin:0">Current Week — Calling Activity</h2>
+        <span class="pill" id="wkWindow"></span>
+      </div>
+      <div class="desc" style="margin-top:6px">Live from Dialpad, Monday to now. Outbound dials include cancelled attempts. Click a column to sort.</div>
+      <div id="wkBody"></div>
     </div>
   </section>
 
@@ -216,6 +229,7 @@
       </div>
       <div class="desc" style="margin-top:6px">Signed = contract value brought in. Closed = revenue realized. Close rate = closed ÷ signed contracts.
         <span id="agHidden"></span></div>
+      <div class="mini" style="margin-bottom:10px">Rows show the current acquisition roster (Revenue Forecast tab). The <b>All Signed Deals</b> total &amp; close rate count every signed contract across all agents — the same basis as the sheet's Metric Dashboard.</div>
       <div class="tablewrap"><table id="agTable"></table></div></div>
   </section>
 
@@ -259,7 +273,16 @@ const LIVE = {
     dispo:     "241341633",   // Dispo Rev Tracker (per-rep summary)
     active:    "1367469000",  // DISPOSITION (active listings ledger)
     sold:      "280965259",   // SOLD PROPERTIES (closed deals ledger)
+    pyramid:   "328838003",   // SALES PYRAMID (per-agent signed/closed TOTALS)
   },
+
+  // Dialpad proxy URL (a Cloudflare Worker that holds the API key privately and
+  // returns aggregated current-week dial/talk-time numbers). The key is NEVER
+  // in this file — it lives only as a secret on the worker. Leave blank until
+  // the worker is deployed, then paste its URL here (e.g.
+  // "https://shb-dialpad.<subdomain>.workers.dev"). Blank = the Current Week tab
+  // shows a friendly "not connected" message instead of failing.
+  dialpadProxy: "",
 
   // Optional admin tab, fetched by NAME (create it in the sheet to use it).
   // Anyone with EDIT access to the Google Sheet is effectively a dashboard
@@ -533,6 +556,41 @@ function parseDispo(grid) {
   return { reps, total };
 }
 
+// Fetch current-week Dialpad numbers from the proxy. Returns null (never throws)
+// so the rest of the dashboard is unaffected if it's not configured or is down.
+async function loadDials() {
+  if (!LIVE.dialpadProxy) return { configured: false };
+  try {
+    const r = await fetch(LIVE.dialpadProxy + (LIVE.dialpadProxy.includes("?") ? "&" : "?") + "_=" + Date.now());
+    if (!r.ok) throw new Error("proxy HTTP " + r.status);
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+    return { configured: true, ...d };
+  } catch (e) {
+    return { configured: true, error: String(e.message || e) };
+  }
+}
+
+// Company-wide signed/closed CONTRACT counts, summed from the SALES PYRAMID
+// TOTALS column — the SAME source the sheet's METRIC DASHBOARD uses. This counts
+// ALL signed deals across every agent (including departed ones not on the
+// Revenue Forecast roster), so the closing % matches the Metric Dashboard.
+async function loadCompanyContracts() {
+  try {
+    // select only column D (label) + column BU (per-agent TOTALS) — tiny payload
+    const grid = await gvizFetch('gid=' + LIVE.GID.pyramid + '&tq=' + encodeURIComponent('select D, BU'));
+    let signed = 0, closed = 0;
+    for (const r of grid) {
+      const label = r[0] == null ? '' : String(r[0]).trim();
+      const v = pnum(r[1]) || 0;
+      if (label === 'CONTRACTS SIGNED') signed += v;
+      else if (label === 'CLOSED CONTRACTS') closed += v;
+    }
+    if (!signed) return null;
+    return { signed, closed, closeRate: closed / signed, source: 'Sales Pyramid — all signed deals' };
+  } catch (e) { return null; }
+}
+
 // ---- top-level: pull everything and assemble the dashboard model ------------
 async function loadLive() {
   const today = new Date();
@@ -541,6 +599,8 @@ async function loadLive() {
     fetchTab(LIVE.GID.active), fetchTab(LIVE.GID.sold),
     fetchTabByName(LIVE.ADMIN_TAB).catch(() => null),  // optional — no-op if absent
   ]);
+  const dials = await loadDials();  // live Dialpad numbers (independent of the sheet)
+  const companyContracts = await loadCompanyContracts();  // all signed deals (Metric Dashboard basis)
   const revenue = parseRevenue(revG);
   const marketing = parseMarketing(mkG);
   const dispo = parseDispo(dpG);
@@ -581,7 +641,8 @@ async function loadLive() {
       fetchedAt: today,
       hidden: { agents: hiddenAgents, reps: hiddenReps },
     },
-    revenue, marketing, dispo, inventory, weekly, oldest, soldAvgDom, closings,
+    revenue, marketing, dispo, inventory, weekly, oldest, soldAvgDom, closings, dials,
+    companyContracts,
   };
 }
 
@@ -596,6 +657,17 @@ const usd = n => n==null? '—' : (n<0?'-':'')+'$'+Math.round(Math.abs(n)).toLoc
 const usdK = n => { if(n==null) return '—'; const a=Math.abs(n); const s=n<0?'-':'';
   if(a>=1e6) return s+'$'+(a/1e6).toFixed(2)+'M'; if(a>=1e3) return s+'$'+Math.round(a/1e3)+'K'; return s+'$'+Math.round(a); };
 const pct = n => n==null? '—' : (n*100).toFixed(1)+'%';
+const pct2 = n => n==null? '—' : (n*100).toFixed(2)+'%';
+// company-wide contract counts (all signed deals) with graceful fallback to the
+// Revenue Forecast roster total if the Sales Pyramid fetch failed
+function coContracts(){
+  const c=M.companyContracts;
+  if(c) return {signed:c.signed,closed:c.closed,closeRate:c.closeRate,all:true};
+  const at=M.revenue.agentsTotal||{};
+  return {signed:at.signedContracts||0,closed:at.closedContracts||0,closeRate:at.closeRate,all:false};
+}
+const mmss = sec => { if(sec==null) return '—'; sec=Math.round(sec); return Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0'); };
+const hm = min => { if(min==null) return '—'; min=Math.round(min); const h=Math.floor(min/60); return h? `${h}h ${min%60}m` : `${min}m`; };
 const intc = n => n==null? '—' : Math.round(n).toLocaleString();
 const num1 = n => n==null? '—' : (Math.round(n*10)/10).toLocaleString();
 
@@ -763,7 +835,7 @@ function simpleTable(t,cols,rows,foot){
   t.appendChild(tb);
   if(foot){const tf=el('tfoot');const tr=el('tr');cols.forEach(c=>tr.appendChild(el('td',c.r?'r':'',c.ft?c.ft(foot):'')));tf.appendChild(tr);t.appendChild(tf);}
 }
-function closeBadge(p){if(p==null)return '—';const c=p>=0.4?'b-good':p>=0.2?'b-warn':'b-bad';return `<span class="badge ${c}">${pct(p)}</span>`;}
+function closeBadge(p,fmt){if(p==null)return '—';const c=p>=0.4?'b-good':p>=0.2?'b-warn':'b-bad';return `<span class="badge ${c}">${(fmt||pct)(p)}</span>`;}
 
 // ============ render ============
 let agSort={key:'closedRev',dir:-1};
@@ -814,6 +886,7 @@ function renderAll(){
 
   renderYtd(agg,ytdClosed,ytdOpen);
   renderQuarterly();
+  renderWeek();
 
   // ---------- REVENUE ----------
   const k2=$('#revKpis'); k2.innerHTML='';
@@ -858,10 +931,12 @@ function renderAll(){
   // ---------- AGENTS ----------
   const k4=$('#agKpis'); k4.innerHTML='';
   const at=r.agentsTotal||{};
+  const co=coContracts();
   k4.appendChild(kpi('Active Agents',r.agents.length,'on the board'));
-  k4.appendChild(kpi('Signed Revenue',usdK(at.signedRev),`${intc(at.signedContracts)} contracts signed`));
-  k4.appendChild(kpi('Closed Revenue',usdK(at.closedRev),`${intc(at.closedContracts)} contracts closed`));
-  k4.appendChild(kpi('Team Close Rate',pct(at.closeRate),'closed ÷ signed contracts'));
+  k4.appendChild(kpi('Signed Revenue',usdK(at.signedRev),`${intc(at.signedContracts)} roster contracts`));
+  k4.appendChild(kpi('Closed Revenue',usdK(at.closedRev),`${intc(at.closedContracts)} roster contracts`));
+  k4.appendChild(kpi('Close Rate — All Signed Deals',pct2(co.closeRate),
+    `${intc(co.closed)} closed ÷ ${intc(co.signed)} signed${co.all?' · matches Metric Dashboard':''}`));
   const hid=(M.meta.hidden&&M.meta.hidden.agents)||[];
   $('#agHidden').innerHTML=hid.length?` <span class="badge b-mut">${hid.length} hidden from roster</span> <span class="mini">(${hid.join(', ')} — managed in the sheet's ${LIVE.ADMIN_TAB} tab; still counted in company totals)</span>`:'';
   renderAgents();
@@ -894,15 +969,67 @@ function renderAll(){
   ],dp.reps.slice().sort((a,b)=>b.closed2026Rev-a.closed2026Rev),dp.total);
 }
 
+// ============ Current Week (Dialpad) view ============
+let wkSort={key:'dials',dir:-1};
+function renderWeek(){
+  const d=M.dials||{configured:false};
+  const kp=$('#wkKpis'), body=$('#wkBody'), win=$('#wkWindow');
+  kp.innerHTML=''; win.textContent='';
+
+  if(!d.configured){
+    body.innerHTML=`<div class="banner show" style="margin:0">Dialpad isn't connected yet. Deploy the proxy worker in <b>dialpad-proxy/</b> and paste its URL into <b>LIVE.dialpadProxy</b> in <b>live.js</b>, then rebuild. (The API key stays private on the worker — never in this site.)</div>`;
+    return;
+  }
+  if(d.error){
+    body.innerHTML=`<div class="banner show" style="margin:0">Couldn't load Dialpad data from the proxy: ${d.error}. Check the worker and its DIALPAD_API_KEY secret.</div>`;
+    return;
+  }
+  const t=d.totals||{dials:0,talkMinutes:0,avgTalkPerCallSec:0};
+  const agents=d.agents||[];
+  win.textContent=`week to date · updated ${d.generatedAt?fmtTime(new Date(d.generatedAt)):''}`;
+  kp.appendChild(kpi('Outbound Dials',intc(t.dials),`${agents.length} agents dialing`));
+  kp.appendChild(kpi('Total Talk Time',hm(t.talkMinutes),'across all calls'));
+  kp.appendChild(kpi('Avg Talk / Call',mmss(t.avgTalkPerCallSec),'company-wide'));
+  const top=agents[0];
+  kp.appendChild(kpi('Top Dialer',top?top.name:'—',top?`${intc(top.dials)} dials · ${hm(top.talkMinutes)}`:''));
+
+  const cols=[
+    {k:'name',h:'Agent',f:a=>a.name,cls:'name'},
+    {k:'dials',h:'Outbound Dials',r:1,f:a=>intc(a.dials)},
+    {k:'outboundConnected',h:'Connected',r:1,f:a=>intc(a.outboundConnected)},
+    {k:'talkMinutes',h:'Talk Time',r:1,f:a=>hm(a.talkMinutes)},
+    {k:'avgTalkPerCallSec',h:'Avg Talk / Call',r:1,f:a=>mmss(a.avgTalkPerCallSec)},
+  ];
+  const rows=agents.slice().sort((a,b)=>{
+    const x=a[wkSort.key],y=b[wkSort.key];
+    if(typeof x==='string') return wkSort.dir*String(x).localeCompare(String(y));
+    return wkSort.dir*((x||0)-(y||0));
+  });
+  body.innerHTML='<div class="tablewrap"><table id="wkTable"></table></div>';
+  const tbl=$('#wkTable');
+  tbl.innerHTML='<thead><tr>'+cols.map(c=>`<th class="${c.r?'r':''}" data-k="${c.k}">${c.h}</th>`).join('')+'</tr></thead>';
+  const tb=el('tbody');
+  rows.forEach(a=>{const tr=el('tr');cols.forEach(c=>tr.appendChild(el('td',(c.r?'r ':'')+(c.cls||''),c.f(a))));tb.appendChild(tr);});
+  tbl.appendChild(tb);
+  const tf=el('tfoot'),tr=el('tr');
+  tr.appendChild(el('td','','Team Total'));
+  tr.appendChild(el('td','r',intc(t.dials)));
+  tr.appendChild(el('td','r',intc(rows.reduce((s,a)=>s+(a.outboundConnected||0),0))));
+  tr.appendChild(el('td','r',hm(t.talkMinutes)));
+  tr.appendChild(el('td','r',mmss(t.avgTalkPerCallSec)));
+  tf.appendChild(tr); tbl.appendChild(tf);
+  tbl.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;wkSort.dir=wkSort.key===k?-wkSort.dir:-1;wkSort.key=k;renderWeek();});
+}
+
 // ============ YTD view ============
 function renderYtd(agg,ytdClosed,ytdOpen){
-  const at=M.revenue.agentsTotal||{}, dt=(M.dispo&&M.dispo.total)||{};
+  const at=M.revenue.agentsTotal||{}, dt=(M.dispo&&M.dispo.total)||{}, co=coContracts();
   const k=$('#ytdKpis'); k.innerHTML='';
   const prog=Math.min(100,ytdClosed/M.meta.annualRevGoal*100);
   k.appendChild(kpi('YTD Closed Revenue',usdK(ytdClosed),`of ${usdK(M.meta.annualRevGoal)} annual goal`,
     `<div class="bar"><i style="width:${prog}%"></i></div><div class="kpi-sub" style="margin-top:6px">${prog.toFixed(1)}% to goal</div>`));
-  k.appendChild(kpi('Contracts Signed (YTD)',intc(at.signedContracts),
-    `${intc(at.closedContracts)} closed · ${pct(at.closeRate)} close rate`));
+  k.appendChild(kpi('Contracts Signed (YTD)',intc(co.signed),
+    `${intc(co.closed)} closed · ${pct2(co.closeRate)} close rate${co.all?' · all signed deals':''}`));
   k.appendChild(kpi('Marketing Leads (YTD)',intc(agg.leads),
     `${intc(agg.contracts)} contracts · ${num1(agg.leadsPerContract)} leads/contract`));
   k.appendChild(kpi('Ad Spend (YTD)',usdK(agg.spend),`${usd(agg.cpl)} cost per lead`));
@@ -915,8 +1042,9 @@ function renderYtd(agg,ytdClosed,ytdOpen){
   const rows=[
     {m:'Closed Revenue',v:usdK(ytdClosed),g:usdK(M.meta.annualRevGoal)+' (yr)',d:dBadge(ytdClosed,M.meta.annualRevGoal,true,usdK)},
     {m:'Open Pipeline (projected)',v:usdK(ytdOpen),g:'—',d:'<span class="mini">—</span>'},
-    {m:'Contracts Signed (agents)',v:intc(at.signedContracts),g:'—',d:'<span class="mini">—</span>'},
-    {m:'Contracts Closed',v:intc(at.closedContracts),g:'—',d:'<span class="mini">—</span>'},
+    {m:'Contracts Signed (all agents)',v:intc(co.signed),g:'—',d:'<span class="mini">—</span>'},
+    {m:'Contracts Closed',v:intc(co.closed),g:'—',d:'<span class="mini">—</span>'},
+    {m:'Closing % (closed ÷ signed)',v:pct2(co.closeRate),g:'—',d:co.all?'<span class="mini">matches Metric Dashboard</span>':'<span class="mini">roster basis</span>'},
     {m:'Total Leads',v:intc(agg.leads),g:intc(agg.goalLeads),d:dBadge(agg.leads,agg.goalLeads)},
     {m:'Viability %',v:pct(agg.viability),g:'75.0%',d:dBadge(agg.viability,0.75,true,x=>(x*100).toFixed(1)+'pt')},
     {m:'Offers Made',v:intc(agg.offers),g:intc(agg.goalOffers),d:dBadge(agg.offers,agg.goalOffers)},
@@ -1029,13 +1157,13 @@ function renderAgents(){
   rows.forEach(a=>{const tr=el('tr');AG_COLS.forEach(c=>tr.appendChild(el('td',(c.r?'r ':'')+(c.cls||''),c.f(a))));tb.appendChild(tr);});
   t.appendChild(tb);
   const at=M.revenue.agentsTotal;
-  if(at){const tf=el('tfoot');const tr=el('tr');
-    tr.appendChild(el('td','','Company Total'));
+  if(at){const co=coContracts();const tf=el('tfoot');const tr=el('tr');
+    tr.appendChild(el('td','',co.all?'All Signed Deals':'Company Total'));
     tr.appendChild(el('td','r',usdK(at.signedRev)));
     tr.appendChild(el('td','r',usdK(at.closedRev)));
-    tr.appendChild(el('td','r',intc(at.signedContracts)));
-    tr.appendChild(el('td','r',intc(at.closedContracts)));
-    tr.appendChild(el('td','r',closeBadge(at.closeRate)));
+    tr.appendChild(el('td','r',intc(co.signed)));
+    tr.appendChild(el('td','r',intc(co.closed)));
+    tr.appendChild(el('td','r',closeBadge(co.closeRate,pct2)));
     tf.appendChild(tr);t.appendChild(tf);}
   t.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;agSort.dir=agSort.key===k?-agSort.dir:-1;agSort.key=k;renderAgents();});
 }
