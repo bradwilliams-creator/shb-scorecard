@@ -673,10 +673,21 @@ function parseDispo(grid) {
 async function loadDials() {
   if (!LIVE.dialpadProxy) return { configured: false };
   try {
-    const r = await fetch(LIVE.dialpadProxy + (LIVE.dialpadProxy.includes("?") ? "&" : "?") + "_=" + Date.now());
+    // Hard timeout: the proxy serves cached data instantly, so a slow response
+    // means something is wrong — never let it hang the whole dashboard refresh.
+    const ctrl = new AbortController();
+    const to = setTimeout(() => ctrl.abort(), 20000);
+    let r;
+    try {
+      r = await fetch(LIVE.dialpadProxy + (LIVE.dialpadProxy.includes("?") ? "&" : "?") + "_=" + Date.now(),
+        { signal: ctrl.signal });
+    } finally { clearTimeout(to); }
     if (!r.ok) throw new Error("proxy HTTP " + r.status);
     const d = await r.json();
     if (d.error) throw new Error(d.error);
+    // Proxy is still fetching the first export from Dialpad — soft "syncing"
+    // state, not an error. The next refresh (≤5 min) will have the data.
+    if (d.warming) return { configured: true, syncing: true, agents: [], totals: null };
     // The Dialpad export returns one row PER AGENT PER DAY. Collapse to one row
     // per agent for the week so the count (and the per-agent average) reflects
     // people, not person-days. Totals are unchanged (same rows, regrouped).
@@ -701,6 +712,10 @@ async function loadDials() {
     }
     return { configured: true, ...d };
   } catch (e) {
+    // A timeout/abort means the proxy is slow to respond — treat it as a soft
+    // "syncing" state (the cron-warmed cache will be ready shortly), not an error.
+    if (e && (e.name === 'AbortError' || /abort/i.test(String(e.message || e))))
+      return { configured: true, syncing: true, agents: [], totals: null };
     return { configured: true, error: String(e.message || e) };
   }
 }
@@ -1612,6 +1627,10 @@ function renderWeek(){
   win.textContent='';
   if(!d.configured){
     body.innerHTML=`<div class="notice">Dialpad isn't connected yet. Deploy the proxy worker in <b>dialpad-proxy/</b> (the API key lives ONLY as a secret on the worker — never in this public page), then paste its URL into <b>LIVE.dialpadProxy</b> in this file and redeploy.</div>`;
+    return;
+  }
+  if(d.syncing){
+    body.innerHTML=`<div class="notice">Syncing this week's Dialpad activity… the proxy is fetching the latest export. This refreshes automatically — check back in a minute.</div>`;
     return;
   }
   if(d.error){
